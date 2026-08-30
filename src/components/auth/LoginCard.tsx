@@ -94,13 +94,13 @@ export const LoginCard: React.FC = () => {
         concentricRadius="2xl"
         className="w-full max-w-md p-6 sm:p-8 border border-white/20 shadow-[0_0_90px_rgba(0,0,0,0.85)] text-center space-y-6"
       >
-        {/* Specular Glass Logo Container */}
+        {/* Official 3D Gold Logo Asset */}
         <div>
-          <div className="w-20 h-20 mx-auto rounded-2xl p-3 bg-white/5 border border-white/10 shadow-[0_0_30px_rgba(255,215,0,0.25)] backdrop-blur-md flex items-center justify-center mb-4 transition-transform hover:scale-105">
+          <div className="flex justify-center mb-3">
             <img
               src="/logo.png"
               alt="Time Management Logo"
-              className="object-contain w-full h-full filter drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]"
+              className="w-24 h-24 sm:w-28 sm:h-28 object-contain filter drop-shadow-[0_0_24px_rgba(255,204,0,0.35)] transition-transform duration-300 hover:scale-105"
             />
           </div>
 

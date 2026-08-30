@@ -39,6 +39,7 @@ export const DevImpersonationPanel: React.FC<DevImpersonationPanelProps> = ({
     isSimulating,
     exitSimulation,
     loginAs,
+    startSimulation,
     users,
     teams,
     activeTeamId,
@@ -84,7 +85,7 @@ export const DevImpersonationPanel: React.FC<DevImpersonationPanelProps> = ({
   const supervisors = users.filter((u) => u.role === 'supervisor');
 
   const handleSimulate = (user: User) => {
-    loginAs(user.email);
+    startSimulation(user);
     playSound('bonus');
   };
 
@@ -329,13 +330,26 @@ export const DevImpersonationPanel: React.FC<DevImpersonationPanelProps> = ({
                   {teamAgents.map((agent) => (
                     <div
                       key={agent.id}
-                      className="flex items-center justify-between p-1 rounded bg-black/30 border border-white/5 text-[11px]"
+                      onClick={() => handleSimulate(agent)}
+                      className="flex items-center justify-between p-1.5 rounded-lg bg-black/30 border border-white/5 hover:border-yellow-400/40 hover:bg-white/10 text-[11px] cursor-pointer transition-all group"
+                      title={`Click to simulate ${agent.name}`}
                     >
-                      <span className="text-zinc-200 truncate max-w-[90px]">{agent.name}</span>
+                      <div className="flex items-center gap-1.5 truncate">
+                        <img
+                          src={agent.avatarUrl}
+                          alt={agent.name}
+                          className="w-4 h-4 rounded-full object-cover shrink-0 border border-white/20"
+                          referrerPolicy="no-referrer"
+                        />
+                        <span className="text-zinc-200 group-hover:text-yellow-300 truncate max-w-[90px] font-medium">{agent.name}</span>
+                      </div>
                       <button
-                        onClick={() => handleSimulate(agent)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSimulate(agent);
+                        }}
                         title={`Simulate agent ${agent.name}`}
-                        className="text-[9px] px-1 py-0.5 rounded bg-white/5 hover:bg-cyan/20 text-zinc-400 hover:text-cyan font-mono"
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 group-hover:bg-yellow-400/20 text-zinc-400 group-hover:text-yellow-300 font-mono font-bold"
                       >
                         ⚡ Sim
                       </button>

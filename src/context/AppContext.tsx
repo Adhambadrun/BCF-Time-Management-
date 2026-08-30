@@ -83,6 +83,7 @@ interface AppContextType {
   // Actions
   loginAs: (email: string) => void;
   impersonateUser: (userOrEmail: User | string) => void;
+  startSimulation: (userOrEmail: User | string) => void;
   loginWithAuth0: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   setUserDirectly: (user: User) => void;
@@ -592,26 +593,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     impersonateUser(email);
   }, [impersonateUser]);
 
+  const startSimulation = useCallback((userOrEmail: User | string) => {
+    impersonateUser(userOrEmail);
+  }, [impersonateUser]);
+
   const switchSimulatedUser = (email: string) => {
     loginAs(email);
   };
 
-  const exitSimulation = () => {
-    if (realUser) {
-      setCurrentUser(realUser);
-      if (realUser.role !== 'agent') {
-        setActiveTeamId(realUser.teamId || 'cai-1');
-      }
-      playSound('bonus');
-      addHeadline(`👑 Returned to Developer Context: ${realUser.name} (${realUser.role.toUpperCase()})`, 'info', 'normal');
-    } else {
-      const dev = users.find(u => u.role === 'developer') || INITIAL_USERS[0];
-      setCurrentUser(dev);
-      setRealUser(dev);
-      playSound('bonus');
-      addHeadline(`👑 Returned to Developer Context: ${dev.name}`, 'info', 'normal');
-    }
-  };
+  const exitSimulation = useCallback(() => {
+    // Find original developer Adham Badraan
+    const devUser =
+      (realUser && isEmailAllowedToLogin(realUser.email) ? realUser : null) ||
+      users.find((u) => u.email.toLowerCase() === 'adhambadraan@gmail.com') ||
+      users.find((u) => u.role === 'developer') ||
+      INITIAL_USERS.find((u) => u.email.toLowerCase() === 'adhambadraan@gmail.com') ||
+      INITIAL_USERS[0];
+
+    setCurrentUser(devUser);
+    setRealUser(devUser);
+    setStoredData(STORAGE_KEYS.REAL_USER, devUser);
+    setStoredData(STORAGE_KEYS.CURRENT_USER, devUser);
+    setActiveTeamId(devUser.teamId || 'cai-1');
+    playSound('bonus');
+    addHeadline(`👑 Returned to Developer Context: ${devUser.name} (${devUser.email})`, 'info', 'normal');
+  }, [realUser, users, addHeadline]);
 
   const setUserDirectly = useCallback((user: User) => {
     if (!isEmailAllowedToLogin(user.email)) {
@@ -625,15 +631,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setUsers(prev => {
       const idx = prev.findIndex(u => u.email.toLowerCase() === normalizedUser.email.toLowerCase() || u.id === normalizedUser.id);
+      let next: User[];
       if (idx >= 0) {
-        const next = [...prev];
+        next = [...prev];
         next[idx] = { ...next[idx], ...normalizedUser };
-        return next;
+      } else {
+        next = [normalizedUser, ...prev];
       }
-      return [normalizedUser, ...prev];
+      setStoredData(STORAGE_KEYS.USERS, next);
+      return next;
     });
     setCurrentUser(normalizedUser);
     setRealUser(normalizedUser);
+    setStoredData(STORAGE_KEYS.CURRENT_USER, normalizedUser);
+    setStoredData(STORAGE_KEYS.REAL_USER, normalizedUser);
+
     if (normalizedUser.role === 'supervisor' || normalizedUser.role === 'agent') {
       setActiveTeamId(normalizedUser.teamId);
     }
@@ -1777,6 +1789,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsSearchGroundingOpen,
         loginAs,
         impersonateUser,
+        startSimulation,
         loginWithAuth0,
         loginWithGoogle,
         setUserDirectly,

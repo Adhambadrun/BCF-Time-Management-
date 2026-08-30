@@ -137,11 +137,11 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
           concentricRadius="2xl"
           className="w-full max-w-sm p-8 text-center space-y-4 border border-white/20 shadow-[0_0_80px_rgba(0,0,0,0.9)] relative z-10"
         >
-          <div className="w-16 h-16 mx-auto rounded-2xl p-2 bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_20px_rgba(255,215,0,0.2)]">
+          <div className="flex justify-center mb-2">
             <img
               src="/logo.png"
               alt="Time Management Logo"
-              className="object-contain w-full h-full filter drop-shadow-[0_0_6px_rgba(255,215,0,0.4)]"
+              className="w-16 h-16 object-contain filter drop-shadow-[0_0_16px_rgba(255,204,0,0.3)] animate-pulse"
             />
           </div>
           <div className="flex items-center justify-center gap-2.5 text-yellow-400 font-orbitron font-bold text-sm">

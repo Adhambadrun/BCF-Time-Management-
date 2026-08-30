@@ -59,7 +59,7 @@ export async function getAuth0Client(): Promise<Auth0Client> {
 }
 
 /**
- * Converts an Auth0 profile into the BCF application User schema
+ * Converts an Auth0 / Google profile into the application User schema with real Google avatar sync
  */
 export function syncAuth0UserToApp(auth0User: Auth0User): User {
   const email = auth0User.email || '';
@@ -76,16 +76,33 @@ export function syncAuth0UserToApp(auth0User: Auth0User): User {
 
   const seeded = INITIAL_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase());
 
+  // Extract authentic Google / Gmail profile photo from payload
+  let googlePhoto =
+    auth0User.picture ||
+    (auth0User as any).photoURL ||
+    (auth0User as any).avatar_url ||
+    (auth0User as any).picture_large ||
+    (auth0User as any).user_metadata?.picture;
+
+  // Enhance Google avatar resolution if it has default thumbnail sizing
+  if (googlePhoto && typeof googlePhoto === 'string') {
+    if (googlePhoto.includes('googleusercontent.com')) {
+      googlePhoto = googlePhoto.replace(/=s\d+(-c)?/, '=s384-c');
+    }
+  }
+
+  const resolvedAvatar =
+    googlePhoto ||
+    seeded?.avatarUrl ||
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80';
+
   const userObj: User = {
     id: userId,
     name: auth0User.name || meta.name || seeded?.name || email.split('@')[0],
     email: email,
     role: meta.role || seeded?.role || 'agent',
     teamId: meta.teamId || seeded?.teamId || 'cai-2',
-    avatarUrl:
-      auth0User.picture ||
-      seeded?.avatarUrl ||
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+    avatarUrl: resolvedAvatar,
     personalMotto: seeded?.personalMotto || 'Sales Floor Champion 🚀',
     powerEmoji: seeded?.powerEmoji || '⚡',
     podColorTheme: seeded?.podColorTheme || '#00E5FF',

@@ -87,23 +87,32 @@ export const TopHeader: React.FC = () => {
           concentricRadius="none"
           className="w-full h-full border-x-0 border-t-0 flex items-center justify-between px-3 md:px-6 shadow-2xl"
         >
-          {/* LEFT: Shift Time Component Block with Official Logo Asset Binding (Borderless, Same Size as Team Logo) */}
+          {/* LEFT: Application Brand & Official 3D Gold Logo */}
           <div className="flex items-center gap-3">
-            <img
-              src="/logo.png"
-              alt="Time Management Logo"
-              className="w-11 h-11 md:w-13 md:h-13 object-contain filter drop-shadow-[0_0_10px_rgba(255,215,0,0.45)] transition-transform hover:scale-105"
-            />
+            <div className="relative group shrink-0">
+              <img
+                src="/logo.png"
+                alt="Time Management Logo"
+                className="w-12 h-12 md:w-14 md:h-14 object-contain filter drop-shadow-[0_0_14px_rgba(255,215,0,0.5)] transition-transform duration-200 hover:scale-105"
+              />
+            </div>
             <div className="flex flex-col">
-              <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider font-inter">
-                Shift Time
-              </span>
-              <span className="text-xs md:text-sm font-bold text-amber-400 font-mono tracking-tight">
-                10:00 PM – 6:00 AM
-              </span>
-              <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-inter hidden sm:inline">
-                Cairo / Egypt Time (UTC+2)
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-orbitron font-black text-sm sm:text-base md:text-lg tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-yellow-400 to-amber-500">
+                  Time Management
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider font-inter">
+                  Shift
+                </span>
+                <span className="text-xs font-bold text-amber-400 font-mono tracking-tight">
+                  10:00 PM – 6:00 AM
+                </span>
+                <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-inter hidden lg:inline">
+                  · Cairo UTC+2
+                </span>
+              </div>
             </div>
           </div>
 
@@ -461,7 +470,7 @@ export const TopHeader: React.FC = () => {
                             }}
                             className="w-full mt-2 py-1.5 px-2.5 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-black font-orbitron font-black text-[11px] flex items-center justify-center gap-1 transition-transform hover:scale-[1.02] cursor-pointer"
                           >
-                            Exit Simulation (Return to Dev)
+                            Return to Original Developer
                           </button>
                         </div>
                       )}

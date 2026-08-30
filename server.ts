@@ -47,6 +47,9 @@ async function startServer() {
     });
   };
 
+  // Serve static assets from public directory
+  app.use(express.static(path.join(process.cwd(), 'public')));
+
   // 1. Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

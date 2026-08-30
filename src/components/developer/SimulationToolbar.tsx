@@ -145,10 +145,10 @@ export const SimulationToolbar: React.FC = () => {
                     playSound('click');
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-white/15 text-xs font-inter text-zinc-200 hover:text-white transition-all cursor-pointer hover:border-yellow-400/40"
-                  title="Switch to another user simulation"
+                  title="Switch or change active simulated user"
                 >
                   <Users className="w-3.5 h-3.5 text-cyan" />
-                  <span className="font-semibold text-xs">Switch Simulated User</span>
+                  <span className="font-semibold text-xs">Switch User / Change Simulation</span>
                   <ChevronDown
                     className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
                       isSwitcherOpen ? 'rotate-180' : ''
@@ -174,7 +174,7 @@ export const SimulationToolbar: React.FC = () => {
                         <div className="flex items-center justify-between border-b border-white/10 pb-2">
                           <div className="flex items-center gap-1.5 text-xs font-orbitron font-bold text-yellow-400">
                             <UserCheck className="w-4 h-4 text-yellow-400" />
-                            <span>Quick Switch Simulated User</span>
+                            <span>Change Simulation Identity</span>
                           </div>
                           <button
                             onClick={() => setIsSwitcherOpen(false)}
@@ -287,17 +287,17 @@ export const SimulationToolbar: React.FC = () => {
                 <Zap className="w-4 h-4 fill-yellow-400 text-yellow-400" />
               </button>
 
-              {/* Direct Exit Simulation Button */}
+              {/* Direct Return to Developer Button */}
               <button
                 id="exit-simulation-btn"
                 onClick={() => {
                   exitSimulation();
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-orbitron font-black text-xs shadow-[0_0_20px_rgba(255,215,0,0.4)] transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                title="Exit simulation mode and restore your developer profile and views"
+                title="Return to Original Developer (Adham Badraan)"
               >
                 <Undo2 className="w-4 h-4 stroke-[2.5]" />
-                <span>Exit Simulation Mode (Return to Developer View)</span>
+                <span>Return to Original Developer</span>
               </button>
             </div>
           </div>

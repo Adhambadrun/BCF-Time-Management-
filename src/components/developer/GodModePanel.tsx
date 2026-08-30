@@ -20,6 +20,7 @@ export const GodModePanel: React.FC = () => {
     resetAllBreaks,
     exportDataJSON,
     loginAs,
+    startSimulation,
     currentUser,
     realUser,
     isSimulating,
@@ -212,7 +213,7 @@ export const GodModePanel: React.FC = () => {
                       }}
                       className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-orbitron font-black text-xs shadow-md transition-transform hover:scale-105 cursor-pointer flex items-center gap-1.5"
                     >
-                      <span>Exit Simulation Mode (Return to Dev)</span>
+                      <span>Return to Original Developer</span>
                     </button>
                   )}
                 </div>
@@ -226,7 +227,7 @@ export const GodModePanel: React.FC = () => {
                       </span>
                     </div>
                     <span className="text-[10px] text-zinc-400 font-inter">
-                      Superuser Origin: {realUser?.name}
+                      Superuser Origin: {realUser?.name || 'Adham Badraan'}
                     </span>
                   </div>
                 )}
@@ -235,10 +236,10 @@ export const GodModePanel: React.FC = () => {
                     <button
                       key={u.id}
                       onClick={() => {
-                        loginAs(u.email);
+                        startSimulation(u);
                         playSound('click');
                       }}
-                      className={`flex items-center gap-2 p-2 rounded-xl text-left text-xs border transition-all ${
+                      className={`flex items-center gap-2 p-2 rounded-xl text-left text-xs border transition-all cursor-pointer hover:scale-[1.02] ${
                         currentUser?.email === u.email
                           ? 'bg-yellow-400/20 border-yellow-400 text-yellow-300 font-bold'
                           : 'bg-black/40 border-white/10 hover:border-yellow-400/50 text-zinc-300'
