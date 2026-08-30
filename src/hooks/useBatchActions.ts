@@ -1,6 +1,4 @@
 import { useState, useCallback } from 'react';
-import { writeBatch, doc, serverTimestamp, increment } from 'firebase/firestore';
-import { db } from '../services/firebase';
 import { playSound } from '../lib/sound';
 
 export type BatchActionType = 'END_BREAK' | 'HOLD' | 'BLOCK' | 'WARNING' | 'RESET_FLOOR';
@@ -34,7 +32,7 @@ export const useBatchActions = (
     setSelectedAgentIds([]);
   }, []);
 
-  // Execute Firestore Batch Update
+  // Execute Neon Batch Update
   const executeBatchAction = async (action: BatchActionType) => {
     // If RESET_FLOOR and no specific agents selected, apply to all agents
     const targetAgentIds =
@@ -46,52 +44,15 @@ export const useBatchActions = (
     setIsExecuting(true);
 
     try {
-      if (db) {
-        const batch = writeBatch(db);
-
-        targetAgentIds.forEach((agentId) => {
-          const agentRef = doc(db, 'agents', agentId);
-
-          switch (action) {
-            case 'RESET_FLOOR':
-              batch.update(agentRef, {
-                status: 'FLOOR',
-                breakEndedAt: serverTimestamp(),
-                isBreakAllowed: true,
-                isBlocked: false,
-                blockReason: '',
-              });
-              break;
-            case 'END_BREAK':
-              batch.update(agentRef, {
-                status: 'FLOOR',
-                breakEndedAt: serverTimestamp(),
-                isBreakAllowed: true,
-              });
-              break;
-            case 'HOLD':
-              batch.update(agentRef, {
-                status: 'HOLD',
-                isBreakAllowed: false,
-              });
-              break;
-            case 'BLOCK':
-              batch.update(agentRef, {
-                status: 'BLOCKED',
-                isBreakAllowed: false,
-                breakEndedAt: serverTimestamp(),
-              });
-              break;
-            case 'WARNING':
-              batch.update(agentRef, {
-                warningCount: increment(1),
-              });
-              break;
-          }
-        });
-
-        await batch.commit();
-      }
+      await fetch('/api/db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'batch',
+          batchAction: action,
+          selectedAgentEmails: targetAgentIds,
+        }),
+      });
 
       // Sync local state if handler provided
       if (onLocalBatchSync) {
@@ -100,7 +61,7 @@ export const useBatchActions = (
 
       playSound(action === 'WARNING' || action === 'BLOCK' ? 'warning' : 'break_end');
     } catch (err) {
-      console.warn('Firestore Batch Action fallback to local context:', err);
+      console.warn('Batch Action fallback to local context:', err);
       if (onLocalBatchSync) {
         onLocalBatchSync(action, targetAgentIds);
       }
@@ -117,7 +78,8 @@ export const useBatchActions = (
     clearSelection,
     executeBatchAction,
     isExecuting,
-    isAllSelected: allAgentIds.length > 0 && selectedAgentIds.length === allAgentIds.length,
     hasSelection: selectedAgentIds.length > 0,
+    selectedCount: selectedAgentIds.length,
+    isAllSelected: allAgentIds.length > 0 && selectedAgentIds.length === allAgentIds.length,
   };
 };

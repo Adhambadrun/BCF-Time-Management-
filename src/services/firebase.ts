@@ -1,2 +1,2 @@
-export * from '../lib/firebase';
-export { db } from '../lib/firebase';
+// Deprecated: Migrated to Neon PostgreSQL + Auth0
+export const db = null;

@@ -2,22 +2,21 @@ import { createAuth0Client, Auth0Client, User as Auth0User } from '@auth0/auth0-
 import { User } from '../types';
 import { INITIAL_USERS } from './storage';
 import { isEmailAllowedToLogin, determineRoleForEmail } from './authService';
-import { db, doc, getDoc, setDoc } from './firebase';
-import { cleanForFirestore } from './firestoreDb';
+import { firestoreSaveUser } from './neonDb';
 
 let auth0ClientInstance: Auth0Client | null = null;
 
-// Auth0 Configuration
+// Auth0 Configuration with Neon + Auth0 integration defaults
 export function getAuth0Config() {
   const domain =
     import.meta.env.VITE_AUTH0_DOMAIN ||
     (typeof window !== 'undefined' && (window as any).__AUTH0_DOMAIN__) ||
-    'bcflights.us.auth0.com';
+    'icfg-5qgdjxyskxeyawhf3smwvjne.us.auth0.com';
 
   const clientId =
     import.meta.env.VITE_AUTH0_CLIENT_ID ||
     (typeof window !== 'undefined' && (window as any).__AUTH0_CLIENT_ID__) ||
-    '';
+    'XJS0prsHuy59Gxp15wG3sByvv8sYnyGv';
 
   const audience =
     import.meta.env.VITE_AUTH0_AUDIENCE ||
@@ -82,58 +81,45 @@ export async function syncAuth0UserToApp(auth0User: Auth0User): Promise<User> {
   const userId = auth0User.sub || `auth0_${email.replace(/[^a-zA-Z0-9]/g, '_')}`;
   const meta = determineRoleForEmail(email);
 
-  let existingData: Partial<User> = {};
-  try {
-    const userDocRef = doc(db, 'users', userId);
-    const docSnap = await getDoc(userDocRef);
-    if (docSnap.exists()) {
-      existingData = docSnap.data() as Partial<User>;
-    }
-  } catch (err) {
-    console.warn('Firestore read error during Auth0 sync:', err);
-  }
-
   const seeded = INITIAL_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase());
 
   const userObj: User = {
     id: userId,
     name: auth0User.name || meta.name || seeded?.name || email.split('@')[0],
     email: email,
-    role: existingData.role || seeded?.role || meta.role,
-    teamId: existingData.teamId || seeded?.teamId || meta.teamId,
+    role: seeded?.role || meta.role,
+    teamId: seeded?.teamId || meta.teamId,
     avatarUrl:
       auth0User.picture ||
-      existingData.avatarUrl ||
       seeded?.avatarUrl ||
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-    personalMotto: existingData.personalMotto || seeded?.personalMotto || 'Sales Floor Champion 🚀',
-    powerEmoji: existingData.powerEmoji || seeded?.powerEmoji || '⚡',
-    podColorTheme: existingData.podColorTheme || seeded?.podColorTheme || '#00E5FF',
-    preferredLanguage: existingData.preferredLanguage || seeded?.preferredLanguage || 'en',
-    themeMode: existingData.themeMode || seeded?.themeMode || 'dark',
-    notificationsEnabled: existingData.notificationsEnabled ?? true,
-    soundEnabled: existingData.soundEnabled ?? true,
-    reducedMotion: existingData.reducedMotion ?? false,
-    reducedTransparency: existingData.reducedTransparency ?? false,
-    fontSize: existingData.fontSize || 'md',
+    personalMotto: seeded?.personalMotto || 'Sales Floor Champion 🚀',
+    powerEmoji: seeded?.powerEmoji || '⚡',
+    podColorTheme: seeded?.podColorTheme || '#00E5FF',
+    preferredLanguage: seeded?.preferredLanguage || 'en',
+    themeMode: seeded?.themeMode || 'dark',
+    notificationsEnabled: true,
+    soundEnabled: true,
+    reducedMotion: false,
+    reducedTransparency: false,
+    fontSize: 'md',
     isOnline: true,
-    isBlocked: existingData.isBlocked ?? false,
-    blockReason: existingData.blockReason,
+    isBlocked: false,
+    blockReason: undefined,
     lastSeen: new Date().toISOString(),
-    totalBreaksTaken: existingData.totalBreaksTaken ?? seeded?.totalBreaksTaken ?? 0,
-    totalBreakTime: existingData.totalBreakTime ?? seeded?.totalBreakTime ?? 0,
-    totalWarnings: existingData.totalWarnings ?? seeded?.totalWarnings ?? 0,
-    totalBonusReceived: existingData.totalBonusReceived ?? seeded?.totalBonusReceived ?? 0,
-    currentStreak: existingData.currentStreak ?? seeded?.currentStreak ?? 1,
-    longestStreak: existingData.longestStreak ?? seeded?.longestStreak ?? 5,
+    totalBreaksTaken: seeded?.totalBreaksTaken ?? 0,
+    totalBreakTime: seeded?.totalBreakTime ?? 0,
+    totalWarnings: seeded?.totalWarnings ?? 0,
+    totalBonusReceived: seeded?.totalBonusReceived ?? 0,
+    currentStreak: seeded?.currentStreak ?? 1,
+    longestStreak: seeded?.longestStreak ?? 5,
   };
 
-  // Sync to Firestore for real-time presence and shift persistence
+  // Sync to Neon PostgreSQL for real-time presence and shift persistence
   try {
-    const userDocRef = doc(db, 'users', userId);
-    await setDoc(userDocRef, cleanForFirestore(userObj), { merge: true });
+    await firestoreSaveUser(userObj);
   } catch (err) {
-    console.warn('Firestore setDoc failed for Auth0 user:', err);
+    console.warn('Neon save failed for Auth0 user:', err);
   }
 
   return userObj;

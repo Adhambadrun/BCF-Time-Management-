@@ -5,6 +5,16 @@ import { createServer as createViteServer } from 'vite';
 import { WebSocketServer, WebSocket } from 'ws';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import dotenv from 'dotenv';
+import {
+  initNeonTables,
+  seedNeonInitialData,
+  getNeonState,
+  saveNeonRecord,
+  deleteNeonRecord,
+  executeNeonBatchAction,
+  executeNeonTeamBreakLock,
+  neonHeartbeat,
+} from './server/neon';
 
 dotenv.config();
 
@@ -15,6 +25,13 @@ async function startServer() {
   app.use(express.json());
 
   const server = http.createServer(app);
+
+  // Initialize Neon PostgreSQL tables & seed initial floor roster if empty
+  initNeonTables()
+    .then(() => seedNeonInitialData())
+    .catch((err) => {
+      console.warn('Neon database startup warning:', err);
+    });
 
   // Lazy Gemini client helper
   const getAI = () => {
@@ -33,6 +50,72 @@ async function startServer() {
   // 1. Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // 1.1 Neon PostgreSQL Database API Endpoints
+  app.get('/api/db', async (req, res) => {
+    try {
+      const state = await getNeonState();
+      res.json(state);
+    } catch (err: any) {
+      console.error('Neon GET /api/db error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/db/state', async (req, res) => {
+    try {
+      const state = await getNeonState();
+      res.json(state);
+    } catch (err: any) {
+      console.error('Neon GET /api/db/state error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/db', async (req, res) => {
+    try {
+      const body = req.body || {};
+      const { action } = req.query || {};
+      const subAction = (action as string) || body.action;
+
+      if (subAction === 'save') {
+        await saveNeonRecord(body.type, body.data);
+        return res.json({ success: true });
+      }
+
+      if (subAction === 'delete') {
+        await deleteNeonRecord(body.type, body.id);
+        return res.json({ success: true });
+      }
+
+      if (subAction === 'batch') {
+        await executeNeonBatchAction(body.batchAction, body.selectedAgentEmails, body.options);
+        return res.json({ success: true });
+      }
+
+      if (subAction === 'team-lock') {
+        await executeNeonTeamBreakLock(body.teamId, body.block, body.options);
+        return res.json({ success: true });
+      }
+
+      if (subAction === 'heartbeat') {
+        if (body.email) {
+          await neonHeartbeat(body.email);
+        }
+        return res.json({ success: true });
+      }
+
+      if (body.type && body.data) {
+        await saveNeonRecord(body.type, body.data);
+        return res.json({ success: true });
+      }
+
+      return res.status(400).json({ error: 'Unknown database action' });
+    } catch (err: any) {
+      console.error('Neon POST /api/db error:', err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // 2. Google Search Grounding Endpoint (gemini-3.5-flash with googleSearch tool)
