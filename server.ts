@@ -53,6 +53,21 @@ async function startServer() {
   });
 
   // 1.1 Neon PostgreSQL Database API Endpoints
+  app.post('/api/db/seed', async (req, res) => {
+    try {
+      await seedNeonInitialData();
+      const state = await getNeonState();
+      res.json({
+        success: true,
+        teams: state.teams,
+        users: state.users,
+      });
+    } catch (err: any) {
+      console.error('Neon POST /api/db/seed error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get('/api/db', async (req, res) => {
     try {
       const state = await getNeonState();

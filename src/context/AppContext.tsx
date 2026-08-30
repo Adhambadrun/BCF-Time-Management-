@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, Team, BreakRecord, WCTracking, Warning, SNNHeadline, ShiftConfig, ChatMessage, Broadcast, AuditLogEntry, ShiftNote, BreakType, UserRole, ActivityLogExport, BatchActionType } from '../types';
 import { getStoredData, setStoredData, getSessionData, setSessionData, STORAGE_KEYS, INITIAL_USERS, INITIAL_TEAMS, INITIAL_BREAKS, INITIAL_WC_TRACKING, INITIAL_WARNINGS, INITIAL_HEADLINES, INITIAL_CONFIG, INITIAL_DAILY_LOGS } from '../lib/storage';
-import { BCF_TEAMS, getSupervisorTeam, getAgentTeam, getTeamById, isSupervisorEmail } from '../constants/bcfRoster';
+import { BCF_TEAMS, getSupervisorTeam, getAgentTeam, getTeamById, isSupervisorEmail, generateCanonicalRosterUsers, generateCanonicalRosterTeams } from '../constants/bcfRoster';
+import { seedDatabase } from '../lib/db';
 import { playSound } from '../lib/sound';
 import { loginWithGooglePopup, logoutFirebaseAuth, isEmailAllowedToLogin } from '../lib/authService';
 import { loginWithAuth0Popup, logoutAuth0, handleAuth0RedirectCallback, getAuth0Config } from '../lib/auth0Service';
@@ -81,6 +82,7 @@ interface AppContextType {
 
   // Actions
   loginAs: (email: string) => void;
+  impersonateUser: (userOrEmail: User | string) => void;
   loginWithAuth0: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   setUserDirectly: (user: User) => void;
@@ -212,6 +214,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('click', handleActivity);
       window.removeEventListener('scroll', handleActivity);
     };
+  }, []);
+
+  // Seed and synchronize database on AppProvider initialization
+  useEffect(() => {
+    seedDatabase()
+      .then((res) => {
+        if (res.teams && res.teams.length > 0) {
+          setTeams((prev) => (prev.length >= res.teams.length ? prev : res.teams));
+        }
+        if (res.users && res.users.length > 0) {
+          setUsers((prev) => (prev.length >= res.users.length ? prev : res.users));
+        }
+      })
+      .catch((err) => {
+        console.warn('Initial seedDatabase execution notice:', err);
+      });
   }, []);
 
   // Real-time Firestore synchronization on mount
@@ -527,33 +545,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     firestoreSaveHeadline(newHeadline);
   }, []);
 
-  const loginAs = (email: string) => {
-    if (!isEmailAllowedToLogin(email)) {
-      addHeadline(`🚫 Access restricted: ${email} is not an authorized @bcflights.com account`, 'warning', 'urgent');
+  const impersonateUser = useCallback((userOrEmail: User | string) => {
+    let targetUser: User | undefined;
+    if (typeof userOrEmail === 'string') {
+      const email = userOrEmail.trim().toLowerCase();
+      targetUser = users.find(u => u.email.toLowerCase() === email) ||
+                   INITIAL_USERS.find(u => u.email.toLowerCase() === email);
+    } else if (userOrEmail && typeof userOrEmail === 'object') {
+      targetUser = userOrEmail;
+    }
+
+    if (!targetUser) {
+      console.warn('Target user for impersonation not found:', userOrEmail);
       return;
     }
-    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase()) ||
-                      INITIAL_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (foundUser) {
-      const supTeam = getSupervisorTeam(foundUser.email);
-      const user = supTeam
-        ? { ...foundUser, role: 'supervisor' as UserRole, teamId: supTeam.teamId }
-        : foundUser;
 
-      if (!realUser && currentUser) {
-        setRealUser(currentUser);
-      } else if (!realUser) {
-        const defaultDev = users.find(u => u.role === 'developer') || INITIAL_USERS[0];
-        setRealUser(defaultDev);
-      }
-      setCurrentUser(user);
-      if (user.role === 'supervisor' || user.role === 'agent') {
-        setActiveTeamId(user.teamId);
-      }
-      playSound('click');
-      addHeadline(`🎭 Simulating ${user.name} (${user.role.toUpperCase()}) — Developer Toolbar Active`, 'info', 'normal');
+    if (!isEmailAllowedToLogin(targetUser.email)) {
+      addHeadline(`🚫 Access restricted: ${targetUser.email} is not authorized`, 'warning', 'urgent');
+      return;
     }
-  };
+
+    const supTeam = getSupervisorTeam(targetUser.email);
+    const resolvedUser: User = supTeam
+      ? { ...targetUser, role: 'supervisor' as UserRole, teamId: supTeam.teamId }
+      : targetUser;
+
+    const originalSuperuser = realUser || (currentUser && currentUser.role === 'developer' ? currentUser : null) || users.find(u => u.role === 'developer') || INITIAL_USERS[0];
+
+    setRealUser(originalSuperuser);
+    setCurrentUser(resolvedUser);
+
+    // Synchronously write to storage to ensure instant persistence
+    setStoredData(STORAGE_KEYS.REAL_USER, originalSuperuser);
+    setStoredData(STORAGE_KEYS.CURRENT_USER, resolvedUser);
+
+    if (resolvedUser.role === 'supervisor' || resolvedUser.role === 'agent' || resolvedUser.role === 'independent') {
+      setActiveTeamId(resolvedUser.teamId);
+      setSessionData(STORAGE_KEYS.ACTIVE_TEAM_FILTER, resolvedUser.teamId);
+    }
+
+    playSound('bonus');
+    addHeadline(`🎭 Simulating ${resolvedUser.name} (${resolvedUser.role.toUpperCase()}) — Session Active`, 'info', 'normal');
+  }, [users, realUser, currentUser, addHeadline]);
+
+  const loginAs = useCallback((email: string) => {
+    impersonateUser(email);
+  }, [impersonateUser]);
 
   const switchSimulatedUser = (email: string) => {
     loginAs(email);
@@ -1739,6 +1776,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSearchGroundingOpen,
         setIsSearchGroundingOpen,
         loginAs,
+        impersonateUser,
         loginWithAuth0,
         loginWithGoogle,
         setUserDirectly,
