@@ -14,6 +14,7 @@ import {
 } from './firebase';
 import { User, UserRole } from '../types';
 import { INITIAL_USERS } from './storage';
+import { cleanForFirestore } from './firestoreDb';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Domain security validation: Only name@bcflights.com allowed
@@ -127,7 +128,7 @@ export async function syncFirebaseUserToApp(fbUser: FirebaseUser): Promise<User>
 
   // Persist back to Firestore asynchronously
   try {
-    await setDoc(userDocRef, userObj, { merge: true });
+    await setDoc(userDocRef, cleanForFirestore(userObj), { merge: true });
   } catch (err) {
     console.warn('Firestore setDoc failed:', err);
   }

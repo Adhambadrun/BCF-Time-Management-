@@ -29,6 +29,26 @@ import {
 // Helper to sanitize Firestore document ID
 const sanitizeDocId = (id: string) => id.replace(/[/\\#?]/g, '_');
 
+// Deeply strip any `undefined` values to prevent Firestore invalid data errors
+export function cleanForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return null as any;
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => cleanForFirestore(item)) as any;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(data as any)) {
+      if (value !== undefined) {
+        cleaned[key] = cleanForFirestore(value);
+      }
+    }
+    return cleaned;
+  }
+  return data;
+}
+
 // Realtime listeners
 export function subscribeToFirestoreTeams(callback: (teams: Team[]) => void) {
   try {
@@ -193,7 +213,7 @@ export function subscribeToFirestoreDailyLogs(callback: (logs: ActivityLogExport
 export async function firestoreSaveBreak(breakRecord: BreakRecord) {
   try {
     const docRef = doc(db, 'breaks', sanitizeDocId(breakRecord.breakId));
-    await setDoc(docRef, breakRecord, { merge: true });
+    await setDoc(docRef, cleanForFirestore(breakRecord), { merge: true });
   } catch (err) {
     console.error('Failed to persist break to Firestore:', err);
   }
@@ -202,7 +222,7 @@ export async function firestoreSaveBreak(breakRecord: BreakRecord) {
 export async function firestoreSaveWCTracking(tracking: WCTracking) {
   try {
     const docRef = doc(db, 'wcTracking', sanitizeDocId(tracking.agentEmail));
-    await setDoc(docRef, tracking, { merge: true });
+    await setDoc(docRef, cleanForFirestore(tracking), { merge: true });
   } catch (err) {
     console.error('Failed to persist WC tracking to Firestore:', err);
   }
@@ -211,7 +231,7 @@ export async function firestoreSaveWCTracking(tracking: WCTracking) {
 export async function firestoreSaveWarning(warning: Warning) {
   try {
     const docRef = doc(db, 'warnings', sanitizeDocId(warning.warningId));
-    await setDoc(docRef, warning, { merge: true });
+    await setDoc(docRef, cleanForFirestore(warning), { merge: true });
   } catch (err) {
     console.error('Failed to persist warning to Firestore:', err);
   }
@@ -220,7 +240,7 @@ export async function firestoreSaveWarning(warning: Warning) {
 export async function firestoreSaveHeadline(headline: SNNHeadline) {
   try {
     const docRef = doc(db, 'headlines', sanitizeDocId(headline.headlineId));
-    await setDoc(docRef, headline, { merge: true });
+    await setDoc(docRef, cleanForFirestore(headline), { merge: true });
   } catch (err) {
     console.error('Failed to persist headline to Firestore:', err);
   }
@@ -229,7 +249,7 @@ export async function firestoreSaveHeadline(headline: SNNHeadline) {
 export async function firestoreSaveConfig(config: ShiftConfig) {
   try {
     const docRef = doc(db, 'config', 'current_shift');
-    await setDoc(docRef, config, { merge: true });
+    await setDoc(docRef, cleanForFirestore(config), { merge: true });
   } catch (err) {
     console.error('Failed to persist shift config to Firestore:', err);
   }
@@ -238,7 +258,7 @@ export async function firestoreSaveConfig(config: ShiftConfig) {
 export async function firestoreSaveBroadcast(broadcast: Broadcast) {
   try {
     const docRef = doc(db, 'broadcasts', sanitizeDocId(broadcast.broadcastId));
-    await setDoc(docRef, broadcast, { merge: true });
+    await setDoc(docRef, cleanForFirestore(broadcast), { merge: true });
   } catch (err) {
     console.error('Failed to persist broadcast to Firestore:', err);
   }
@@ -247,7 +267,7 @@ export async function firestoreSaveBroadcast(broadcast: Broadcast) {
 export async function firestoreSaveTeam(team: Team) {
   try {
     const docRef = doc(db, 'teams', sanitizeDocId(team.teamId));
-    await setDoc(docRef, team, { merge: true });
+    await setDoc(docRef, cleanForFirestore(team), { merge: true });
   } catch (err) {
     console.error('Failed to persist team to Firestore:', err);
   }
@@ -262,10 +282,19 @@ export async function firestoreDeleteTeam(teamId: string) {
   }
 }
 
+export async function firestoreDeleteUser(email: string) {
+  try {
+    const docRef = doc(db, 'users', sanitizeDocId(email));
+    await deleteDoc(docRef);
+  } catch (err) {
+    console.error('Failed to delete user from Firestore:', err);
+  }
+}
+
 export async function firestoreSaveUser(user: User) {
   try {
     const docRef = doc(db, 'users', sanitizeDocId(user.email));
-    await setDoc(docRef, user, { merge: true });
+    await setDoc(docRef, cleanForFirestore(user), { merge: true });
   } catch (err) {
     console.error('Failed to persist user to Firestore:', err);
   }
@@ -287,7 +316,7 @@ export async function firestoreHeartbeat(email: string) {
 export async function firestoreSaveDailyLog(log: ActivityLogExport) {
   try {
     const docRef = doc(db, 'daily_logs', sanitizeDocId(log.logId));
-    await setDoc(docRef, log, { merge: true });
+    await setDoc(docRef, cleanForFirestore(log), { merge: true });
   } catch (err) {
     console.error('Failed to save daily activity log:', err);
   }
@@ -374,7 +403,7 @@ export async function executeFirestoreBatchAction(
           status: 'active',
           penalties: { maxBreakTime: 50, maxSlots: 4 },
         };
-        batch.set(warnRef, newWarn);
+        batch.set(warnRef, cleanForFirestore(newWarn));
       }
     });
 

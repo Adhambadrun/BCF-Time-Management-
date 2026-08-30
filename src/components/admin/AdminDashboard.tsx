@@ -4,6 +4,7 @@ import { GlassPanel } from '../shared/GlassPanel';
 import { Users, Clock, AlertTriangle, ShieldCheck, TrendingUp, Search, Plus, Radio, Award, AlertOctagon, UserPlus, Sliders, Download, FileSpreadsheet } from 'lucide-react';
 import { playSound } from '../../lib/sound';
 import { BreakEfficiencyChart } from './BreakEfficiencyChart';
+import { FloorActivityHeatmap } from './FloorActivityHeatmap';
 import { CsvExportModal } from '../modals/CsvExportModal';
 
 export const AdminDashboard: React.FC = () => {
@@ -157,6 +158,14 @@ export const AdminDashboard: React.FC = () => {
           <div className="text-[10px] text-zinc-400 font-inter">Military sync active</div>
         </GlassPanel>
       </div>
+
+      {/* D3-BASED SALES FLOOR ACTIVITY HEATMAP */}
+      <FloorActivityHeatmap
+        breaks={breaks}
+        teams={teams}
+        shiftConfig={shiftConfig}
+        activeTeamId={activeTeamId}
+      />
 
       {/* 7-DAY BREAK EFFICIENCY & COMPLIANCE TREND GRAPH */}
       <BreakEfficiencyChart

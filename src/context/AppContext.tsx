@@ -21,10 +21,17 @@ import {
   firestoreSaveUser,
   firestoreSaveTeam,
   firestoreDeleteTeam,
+  firestoreDeleteUser,
   firestoreHeartbeat,
   firestoreSaveDailyLog,
   executeFirestoreBatchAction,
 } from '../lib/firestoreDb';
+import {
+  sendBreakExceededNotification,
+  requestNotificationPermission,
+  getNotificationPermission,
+  isNotificationSupported,
+} from '../lib/notifications';
 import confetti from 'canvas-confetti';
 
 interface AppContextType {
@@ -77,6 +84,9 @@ interface AppContextType {
   addAgentPod: (agentData: { name: string; email: string; teamId: string; role?: UserRole; avatarUrl?: string; personalMotto?: string; powerEmoji?: string }) => User;
   reassignAgentTeam: (agentEmail: string, newTeamId: string) => void;
   removeAgentPod: (agentEmail: string) => void;
+  deleteUser: (agentEmail: string) => void;
+  notificationPermission: NotificationPermission | 'unsupported';
+  enableBrowserNotifications: () => Promise<NotificationPermission | 'unsupported'>;
   startBreak: (agentEmail: string, breakType: BreakType) => { success: boolean; message: string };
   endBreak: (breakId: string, forcedBy?: string) => void;
   grantBonusBreak: (agentEmail: string, reason: string) => void;
@@ -791,7 +801,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUserAvatar = (agentEmail: string, newUrl: string) => {
-    setUsers(prev => prev.map(u => u.email === agentEmail ? { ...u, avatarUrl: newUrl } : u));
+    setUsers(prev => {
+      const next = prev.map(u => u.email === agentEmail ? { ...u, avatarUrl: newUrl } : u);
+      const target = next.find(u => u.email === agentEmail);
+      if (target) firestoreSaveUser(target);
+      return next;
+    });
     if (currentUser?.email === agentEmail) {
       setCurrentUser(prev => prev ? { ...prev, avatarUrl: newUrl } : null);
     }
@@ -800,7 +815,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUserProfile = (agentEmail: string, updates: Partial<User>) => {
-    setUsers(prev => prev.map(u => u.email === agentEmail ? { ...u, ...updates } : u));
+    setUsers(prev => {
+      const next = prev.map(u => u.email === agentEmail ? { ...u, ...updates } : u);
+      const target = next.find(u => u.email === agentEmail);
+      if (target) firestoreSaveUser(target);
+      return next;
+    });
     if (currentUser?.email === agentEmail) {
       setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
     }
@@ -841,8 +861,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = {
         ...prev,
         rallyModeActive: false,
-        rallyModeEndsAt: undefined,
-        rallyModeMessage: undefined,
+        rallyModeEndsAt: 0,
+        rallyModeMessage: '',
+        rallyModeStartedBy: '',
       };
       firestoreSaveConfig(next);
       return next;

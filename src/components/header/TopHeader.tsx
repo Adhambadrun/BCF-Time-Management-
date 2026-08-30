@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { GlassPanel } from '../shared/GlassPanel';
 import { RoleGuard } from '../shared/RoleGuard';
-import { Clock, Users, Zap, ChevronDown, MessageSquare, CloudSun, Settings, Award, User, LogOut, Radio, Bell } from 'lucide-react';
+import { Clock, Users, Zap, ChevronDown, MessageSquare, CloudSun, Settings, Award, User, LogOut, Radio, Bell, ArrowRightLeft, ShieldAlert, Search, X, Check, Flame, ShieldOff, Sliders } from 'lucide-react';
 import { SNAP, GLIDE } from '../../styles/motion-presets';
 import { motion, AnimatePresence } from 'motion/react';
 import { playSound } from '../../lib/sound';
@@ -11,6 +11,8 @@ import { NotificationDrawer } from '../notifications/NotificationDrawer';
 export const TopHeader: React.FC = () => {
   const {
     currentUser,
+    users,
+    loginAs,
     teams,
     activeTeamId,
     setActiveTeamId,
@@ -22,12 +24,17 @@ export const TopHeader: React.FC = () => {
     setIsMessagesOpen,
     openModal,
     logout,
+    endRallyMode,
   } = useApp();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isTeamSelectorOpen, setIsTeamSelectorOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isUserSwitcherOpen, setIsUserSwitcherOpen] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const isAdham = currentUser?.email?.toLowerCase() === 'adhambadraan@gmail.com' || currentUser?.email?.toLowerCase() === 'adhambadran@bcflights.com';
 
   const activeTeam = teams.find(t => t.teamId === activeTeamId) || teams[0];
   const capacityPercent = Math.min(100, Math.round((activeBreaksCount / shiftConfig.breakCapacity) * 100));
@@ -58,19 +65,22 @@ export const TopHeader: React.FC = () => {
           concentricRadius="none"
           className="w-full h-full border-x-0 border-t-0 flex items-center justify-between px-3 md:px-6 shadow-2xl"
         >
-          {/* LEFT: Shift Time Component Block with Official Logo Asset Binding */}
-          <div className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md">
+          {/* LEFT: Shift Time Component Block with Official Logo Asset Binding (Borderless, Same Size as Team Logo) */}
+          <div className="flex items-center gap-3">
             <img
               src="/logo.png"
               alt="BCF Logo"
-              className="w-6 h-6 object-contain drop-shadow-[0_0_4px_rgba(255,215,0,0.4)]"
+              className="w-11 h-11 md:w-13 md:h-13 object-contain filter drop-shadow-[0_0_10px_rgba(255,215,0,0.45)] transition-transform hover:scale-105"
             />
             <div className="flex flex-col">
-              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider font-inter">
+              <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider font-inter">
                 Shift Time
               </span>
-              <span className="text-xs font-bold text-amber-400 font-mono">
+              <span className="text-xs md:text-sm font-bold text-amber-400 font-mono tracking-tight">
                 10:00 PM – 6:00 AM
+              </span>
+              <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-inter hidden sm:inline">
+                Cairo / Egypt Time (UTC+2)
               </span>
             </div>
           </div>
@@ -304,6 +314,21 @@ export const TopHeader: React.FC = () => {
               </button>
             </RoleGuard>
 
+            {/* Active Rally Mode Emergency Disable Button in Header (Admin / Developer / Supervisor) */}
+            {shiftConfig.rallyModeActive && (currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
+              <button
+                onClick={() => {
+                  endRallyMode();
+                  playSound('break_end');
+                }}
+                title="Rally Mode is Active! Click to End Rally Mode and Resume Breaks"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-crimson hover:bg-emerald-500 text-white hover:text-black border border-white/30 shadow-[0_0_15px_#FF003C] hover:shadow-[0_0_20px_#00FF88] text-xs font-orbitron font-black transition-all animate-pulse hover:animate-none cursor-pointer"
+              >
+                <Flame className="w-4 h-4 animate-bounce" />
+                <span className="hidden sm:inline">END RALLY</span>
+              </button>
+            )}
+
             {/* Developer God Mode ⚡ Icon (Exclusive to Developer) */}
             {currentUser?.role === 'developer' && (
               <button
@@ -425,6 +450,23 @@ export const TopHeader: React.FC = () => {
                       <RoleGuard allowedRoles={['admin', 'developer']}>
                         <button
                           onClick={() => {
+                            openModal('systemAdmin');
+                            setIsDropdownOpen(false);
+                            playSound('click');
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-yellow-400/20 text-xs font-inter text-yellow-400 font-semibold transition-all cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Sliders className="w-4 h-4 text-yellow-400" />
+                            <span>System Management</span>
+                          </div>
+                          <span className="text-[9px] font-orbitron px-1.5 py-0.5 rounded bg-yellow-400/20 text-yellow-300 border border-yellow-400/40">
+                            ADMIN/DEV
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => {
                             openModal('broadcast');
                             setIsDropdownOpen(false);
                             playSound('click');
@@ -434,7 +476,65 @@ export const TopHeader: React.FC = () => {
                           <Radio className="w-4 h-4 text-crimson" />
                           Send Shift Broadcast
                         </button>
+                        {shiftConfig.rallyModeActive && (
+                          <button
+                            onClick={() => {
+                              endRallyMode();
+                              setIsDropdownOpen(false);
+                              playSound('break_end');
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-crimson/20 hover:bg-emerald-500/20 text-xs font-inter text-crimson hover:text-emerald-300 border border-crimson/40 hover:border-emerald-500/40 transition-all cursor-pointer mt-1"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <ShieldOff className="w-4 h-4 text-crimson" />
+                              <span className="font-semibold">Disable Rally Mode</span>
+                            </div>
+                            <span className="text-[9px] font-orbitron px-1.5 py-0.5 rounded bg-crimson/30 text-white font-bold">
+                              ACTIVE
+                            </span>
+                          </button>
+                        )}
                       </RoleGuard>
+
+                      {/* Adham Developer Exclusive Controls */}
+                      {isAdham && (
+                        <div className="pt-1 pb-1 border-t border-yellow-400/30 my-1 bg-yellow-400/5 rounded-xl px-1 border-b">
+                          <div className="px-2 py-1 text-[9px] font-orbitron uppercase text-yellow-400 font-bold tracking-wider flex items-center justify-between">
+                            <span>Adham Master Access</span>
+                            <span className="text-[8px] px-1.5 py-0.2 rounded bg-yellow-400 text-black font-extrabold">DEV</span>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              setIsGodModeOpen(true);
+                              setIsDropdownOpen(false);
+                              playSound('bonus');
+                            }}
+                            className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-yellow-400/20 text-xs font-inter text-yellow-300 font-semibold transition-all cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Zap className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                              <span>Simulate Access</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-yellow-400/70">GOD MODE</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setIsUserSwitcherOpen(true);
+                              setIsDropdownOpen(false);
+                              playSound('click');
+                            }}
+                            className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-cyan/20 text-xs font-inter text-cyan font-semibold transition-all cursor-pointer mt-0.5"
+                          >
+                            <div className="flex items-center gap-2">
+                              <ArrowRightLeft className="w-4 h-4 text-cyan" />
+                              <span>Switch Between User</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-cyan/70">{users.length} Users</span>
+                          </button>
+                        </div>
+                      )}
 
                       <div className="border-t border-white/10 my-1 pt-1">
                         <button
@@ -462,6 +562,194 @@ export const TopHeader: React.FC = () => {
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
       />
+
+      {/* Adham Exclusive: Switch Between User Modal */}
+      <AnimatePresence>
+        {isUserSwitcherOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={SNAP}
+              className="w-full max-w-2xl"
+            >
+              <GlassPanel material="thick" className="p-6 border border-cyan/40 shadow-[0_0_50px_rgba(0,229,255,0.25)] flex flex-col max-h-[85vh]">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-cyan/20 border border-cyan text-cyan">
+                      <ArrowRightLeft className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-orbitron font-bold text-lg text-white flex items-center gap-2">
+                        <span>Switch User Identity</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan/20 text-cyan border border-cyan/40">
+                          EXCLUSIVE TO ADHAM
+                        </span>
+                      </h3>
+                      <p className="text-xs text-zinc-400 font-inter">
+                        Instant live identity impersonation for floor testing and verification.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsUserSwitcherOpen(false)}
+                    className="p-1.5 rounded-xl hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative mb-4">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    placeholder="Search by agent name, email, role, or team..."
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/15 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan transition-all"
+                  />
+                  {userSearchTerm && (
+                    <button
+                      onClick={() => setUserSearchTerm('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {/* Users List Grid */}
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                  {/* Developers & Admins */}
+                  <div>
+                    <div className="text-[10px] font-orbitron uppercase text-amber-400 font-bold tracking-wider mb-2">
+                      Management & Developer Identities
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {users
+                        .filter(u => u.role === 'developer' || u.role === 'admin')
+                        .filter(u =>
+                          !userSearchTerm ||
+                          u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                          u.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                          u.role.toLowerCase().includes(userSearchTerm.toLowerCase())
+                        )
+                        .map(u => (
+                          <button
+                            key={u.id}
+                            onClick={() => {
+                              loginAs(u.email);
+                              setIsUserSwitcherOpen(false);
+                              playSound('bonus');
+                            }}
+                            className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              currentUser?.email === u.email
+                                ? 'bg-amber-400/20 border-amber-400 text-white font-bold ring-1 ring-amber-400'
+                                : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-amber-400/50 text-zinc-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <img
+                                src={u.avatarUrl}
+                                alt={u.name}
+                                className="w-8 h-8 rounded-full object-cover border border-amber-400/60"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="truncate">
+                                <div className="text-xs font-semibold text-white truncate">{u.name}</div>
+                                <div className="text-[10px] text-zinc-400 truncate">{u.email}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] font-orbitron font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                                {u.role}
+                              </span>
+                              {currentUser?.email === u.email && (
+                                <Check className="w-4 h-4 text-amber-400 ml-1 shrink-0" />
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* Supervisors & Floor Agents */}
+                  {teams.map(team => {
+                    const teamMembers = users.filter(
+                      u =>
+                        u.teamId === team.teamId &&
+                        u.role !== 'developer' &&
+                        (!userSearchTerm ||
+                          u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                          u.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                          team.teamName.toLowerCase().includes(userSearchTerm.toLowerCase()))
+                    );
+
+                    if (teamMembers.length === 0) return null;
+
+                    return (
+                      <div key={team.teamId} className="space-y-2">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-1">
+                          <span className="text-[10px] font-orbitron uppercase font-bold tracking-wider flex items-center gap-1.5" style={{ color: team.teamColorAccent }}>
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: team.teamColorAccent }} />
+                            {team.teamName} Floor Agents
+                          </span>
+                          <span className="text-[10px] font-mono text-zinc-500">
+                            {teamMembers.length} Pods
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {teamMembers.map(u => (
+                            <button
+                              key={u.id}
+                              onClick={() => {
+                                loginAs(u.email);
+                                setIsUserSwitcherOpen(false);
+                                playSound('click');
+                              }}
+                              className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                currentUser?.email === u.email
+                                  ? 'bg-cyan/20 border-cyan text-white font-bold ring-1 ring-cyan'
+                                  : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-cyan/40 text-zinc-300'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 truncate">
+                                <img
+                                  src={u.avatarUrl}
+                                  alt={u.name}
+                                  className="w-7 h-7 rounded-full object-cover border"
+                                  style={{ borderColor: team.teamColorAccent }}
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="truncate">
+                                  <div className="text-xs font-medium text-white truncate">{u.name}</div>
+                                  <div className="text-[10px] text-zinc-400 truncate">{u.email}</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[9px] font-orbitron uppercase px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">
+                                  {u.role}
+                                </span>
+                                {currentUser?.email === u.email && (
+                                  <Check className="w-4 h-4 text-cyan ml-1 shrink-0" />
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </GlassPanel>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 };

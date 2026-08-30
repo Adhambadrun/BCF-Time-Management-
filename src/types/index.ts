@@ -1,4 +1,4 @@
-export type UserRole = 'agent' | 'supervisor' | 'admin' | 'developer';
+export type UserRole = 'agent' | 'supervisor' | 'admin' | 'developer' | 'independent' | 'previewer';
 
 export type BreakType = 'regular' | 'wc' | 'meal' | 'personal' | 'bonus';
 

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { playSound } from '../../lib/sound';
 import { BreakType, UserRole } from '../../types';
+import { SystemAdminModal } from './SystemAdminModal';
 
 const EMBLEM_PRESETS = [
   { label: 'Eagle Strike', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80' },
@@ -1643,6 +1644,12 @@ export const ModalManager: React.FC = () => {
           </div>
         </GlassPanel>
       )}
+
+      {/* System Administration / Management Modal */}
+      <SystemAdminModal
+        isOpen={activeModal === 'systemAdmin' || activeModal === 'systemManagement'}
+        onClose={closeModal}
+      />
     </div>
   );
 };
