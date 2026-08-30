@@ -14,11 +14,22 @@ const clientId =
 
 const audience = import.meta.env.VITE_AUTH0_AUDIENCE;
 
+const onRedirectCallback = (appState?: any) => {
+  if (typeof window !== 'undefined') {
+    window.history.replaceState(
+      {},
+      document.title,
+      appState?.returnTo || window.location.pathname
+    );
+  }
+};
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Auth0Provider
       domain={domain}
       clientId={clientId}
+      onRedirectCallback={onRedirectCallback}
       authorizationParams={{
         redirect_uri: typeof window !== 'undefined' ? window.location.origin : undefined,
         ...(audience ? { audience } : {}),

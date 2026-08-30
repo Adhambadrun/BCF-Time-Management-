@@ -129,29 +129,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => getStoredData(STORAGE_KEYS.USERS, INITIAL_USERS));
   const [teams, setTeams] = useState<Team[]>(() => getStoredData(STORAGE_KEYS.TEAMS, INITIAL_TEAMS));
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        // Clear any old auto-logged-in dev sessions from previous versions
-        localStorage.removeItem('bcf_auth_current_user_v3');
-        localStorage.removeItem('bcf_real_user_v3');
-        localStorage.removeItem('bcf_auth_current_user_v2');
-        localStorage.removeItem('bcf_auth_current_user');
-      } catch {
-        // ignore
-      }
-    }
     const saved = getStoredData<User | null>(STORAGE_KEYS.CURRENT_USER, null);
-    if (saved && saved.email && saved.email !== 'solomon@bcflights.com' && saved.email !== 'adhambadraan@gmail.com') {
+    if (saved && saved.email && isEmailAllowedToLogin(saved.email)) {
       const match = INITIAL_USERS.find(u => u.email.toLowerCase() === saved.email.toLowerCase());
       return match ? { ...match, ...saved } : saved;
     }
-    // Default to NULL: The user MUST log in via the Login Card
     return null;
   });
 
   const [realUser, setRealUser] = useState<User | null>(() => {
     const saved = getStoredData<User | null>(STORAGE_KEYS.REAL_USER, null);
-    if (saved && saved.email && saved.email !== 'adhambadraan@gmail.com') {
+    if (saved && saved.email && isEmailAllowedToLogin(saved.email)) {
       const match = INITIAL_USERS.find(u => u.email.toLowerCase() === saved.email.toLowerCase());
       return match ? { ...match, ...saved } : saved;
     }
@@ -275,20 +263,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubUsers();
       unsubDailyLogs();
     };
-  }, []);
-
-  // Handle Auth0 Universal Login redirect callback if returning from Auth0
-  useEffect(() => {
-    handleAuth0RedirectCallback()
-      .then((user) => {
-        if (user) {
-          setUserDirectly(user);
-          playSound('bonus');
-        }
-      })
-      .catch((err) => {
-        console.warn('Auth0 redirect callback check:', err);
-      });
   }, []);
 
   // Sync to storage
@@ -572,7 +546,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const setUserDirectly = (user: User) => {
+  const addHeadline = useCallback((text: string, category: SNNHeadline['category'] = 'break', priority: SNNHeadline['priority'] = 'normal') => {
+    const newHeadline: SNNHeadline = {
+      headlineId: 'hl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      headlineText: text,
+      category,
+      priority,
+      timestamp: Date.now(),
+      visibility: 'all',
+    };
+    setHeadlines(prev => [newHeadline, ...prev.slice(0, 30)]);
+    firestoreSaveHeadline(newHeadline);
+  }, []);
+
+  const setUserDirectly = useCallback((user: User) => {
     if (!isEmailAllowedToLogin(user.email)) {
       addHeadline(`🚫 Access denied: ${user.email} does not belong to @bcflights.com domain`, 'warning', 'urgent');
       return;
@@ -593,7 +580,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     playSound('click');
     addHeadline(`👋 ${user.name} authenticated via ${user.email}`, 'info', 'normal');
-  };
+  }, [addHeadline]);
 
   const loginWithAuth0 = async () => {
     try {
@@ -657,19 +644,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsGodModeOpen(false);
     setIsSettingsOpen(false);
   };
-
-  const addHeadline = useCallback((text: string, category: SNNHeadline['category'] = 'break', priority: SNNHeadline['priority'] = 'normal') => {
-    const newHeadline: SNNHeadline = {
-      headlineId: 'hl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-      headlineText: text,
-      category,
-      priority,
-      timestamp: Date.now(),
-      visibility: 'all',
-    };
-    setHeadlines(prev => [newHeadline, ...prev.slice(0, 30)]);
-    firestoreSaveHeadline(newHeadline);
-  }, []);
 
   const logAudit = (action: string, category: AuditLogEntry['actionCategory'], details: Record<string, any>, targetUser?: string) => {
     if (!currentUser) return;

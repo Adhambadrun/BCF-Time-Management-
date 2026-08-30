@@ -52,7 +52,6 @@ export async function getAuth0Client(): Promise<Auth0Client> {
       audience: audience || undefined,
       scope: 'openid profile email',
     },
-    useRefreshTokens: true,
     cacheLocation: 'localstorage',
   });
 
@@ -62,17 +61,11 @@ export async function getAuth0Client(): Promise<Auth0Client> {
 /**
  * Converts an Auth0 profile into the BCF application User schema
  */
-export async function syncAuth0UserToApp(auth0User: Auth0User): Promise<User> {
+export function syncAuth0UserToApp(auth0User: Auth0User): User {
   const email = auth0User.email || '';
 
   // Enforce company domain access restriction (@bcflights.com and developer adhambadraan@gmail.com)
   if (!isEmailAllowedToLogin(email)) {
-    try {
-      const client = await getAuth0Client();
-      await client.logout({ logoutParams: { returnTo: window.location.origin } });
-    } catch {
-      // ignore
-    }
     throw new Error(
       `Access Denied: ${email} is not authorized. Only accounts with the @bcflights.com domain (or developer adhambadraan@gmail.com) are allowed to access the floor.`
     );
@@ -115,11 +108,13 @@ export async function syncAuth0UserToApp(auth0User: Auth0User): Promise<User> {
     longestStreak: seeded?.longestStreak ?? 5,
   };
 
-  // Sync to Neon PostgreSQL for real-time presence and shift persistence
+  // Sync to Firestore/Neon asynchronously in the background
   try {
-    await firestoreSaveUser(userObj);
+    firestoreSaveUser(userObj).catch((err) => {
+      console.warn('Background save for Auth0 user:', err);
+    });
   } catch (err) {
-    console.warn('Neon save failed for Auth0 user:', err);
+    console.warn('Background sync error:', err);
   }
 
   return userObj;
