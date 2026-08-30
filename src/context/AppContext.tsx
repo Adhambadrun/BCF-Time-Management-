@@ -138,10 +138,16 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<User[]>(() => getStoredData(STORAGE_KEYS.USERS, INITIAL_USERS));
   const [teams, setTeams] = useState<Team[]>(() => getStoredData(STORAGE_KEYS.TEAMS, INITIAL_TEAMS));
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = getStoredData<User | null>(STORAGE_KEYS.CURRENT_USER, null);
+  const [isSimulatingState, setIsSimulatingState] = useState<boolean>(() => {
+    return getStoredData<boolean>(STORAGE_KEYS.SIMULATION_ACTIVE, false);
+  });
+
+  const [realUser, setRealUser] = useState<User | null>(() => {
+    const saved =
+      getStoredData<User | null>(STORAGE_KEYS.ORIGINAL_DEV_USER, null) ||
+      getStoredData<User | null>(STORAGE_KEYS.REAL_USER, null);
     if (saved && saved.email && isEmailAllowedToLogin(saved.email)) {
-      const match = INITIAL_USERS.find(u => u.email.toLowerCase() === saved.email.toLowerCase());
+      const match = INITIAL_USERS.find((u) => u.email.toLowerCase() === saved.email.toLowerCase());
       const baseUser = match ? { ...match, ...saved } : saved;
       const supTeam = getSupervisorTeam(baseUser.email);
       if (supTeam) {
@@ -149,13 +155,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return baseUser;
     }
-    return null;
+    return INITIAL_USERS[0];
   });
 
-  const [realUser, setRealUser] = useState<User | null>(() => {
-    const saved = getStoredData<User | null>(STORAGE_KEYS.REAL_USER, null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const isSimulatingSaved = getStoredData<boolean>(STORAGE_KEYS.SIMULATION_ACTIVE, false);
+    const simulated = isSimulatingSaved ? getStoredData<User | null>(STORAGE_KEYS.SIMULATED_USER, null) : null;
+    if (simulated && simulated.email && isEmailAllowedToLogin(simulated.email)) {
+      const match = INITIAL_USERS.find((u) => u.email.toLowerCase() === simulated.email.toLowerCase());
+      const baseUser = match ? { ...match, ...simulated } : simulated;
+      const supTeam = getSupervisorTeam(baseUser.email);
+      return supTeam ? { ...baseUser, role: 'supervisor', teamId: supTeam.teamId } : baseUser;
+    }
+
+    const saved = getStoredData<User | null>(STORAGE_KEYS.CURRENT_USER, null);
     if (saved && saved.email && isEmailAllowedToLogin(saved.email)) {
-      const match = INITIAL_USERS.find(u => u.email.toLowerCase() === saved.email.toLowerCase());
+      const match = INITIAL_USERS.find((u) => u.email.toLowerCase() === saved.email.toLowerCase());
       const baseUser = match ? { ...match, ...saved } : saved;
       const supTeam = getSupervisorTeam(baseUser.email);
       if (supTeam) {
@@ -167,10 +182,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const isSimulating = Boolean(
-    realUser &&
-    currentUser &&
-    (realUser.email.toLowerCase() !== currentUser.email.toLowerCase() ||
-     realUser.role !== currentUser.role)
+    isSimulatingState ||
+    (realUser &&
+      currentUser &&
+      (realUser.email.toLowerCase() !== currentUser.email.toLowerCase() ||
+       realUser.role !== currentUser.role))
   );
 
   const [activeTeamId, setActiveTeamId] = useState<string>(() => {
@@ -615,12 +631,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? { ...targetUser, role: 'supervisor' as UserRole, teamId: supTeam.teamId }
       : targetUser;
 
-    const originalSuperuser = realUser || (currentUser && currentUser.role === 'developer' ? currentUser : null) || users.find(u => u.role === 'developer') || INITIAL_USERS[0];
+    const originalSuperuser =
+      realUser ||
+      (currentUser && currentUser.role === 'developer' ? currentUser : null) ||
+      users.find((u) => u.role === 'developer') ||
+      INITIAL_USERS[0];
 
     setRealUser(originalSuperuser);
     setCurrentUser(resolvedUser);
+    setIsSimulatingState(true);
 
-    // Synchronously write to storage to ensure instant persistence
+    // Synchronously write to storage to ensure instant persistence across reloads
+    setStoredData(STORAGE_KEYS.SIMULATION_ACTIVE, true);
+    setStoredData(STORAGE_KEYS.SIMULATED_USER, resolvedUser);
+    setStoredData(STORAGE_KEYS.ORIGINAL_DEV_USER, originalSuperuser);
     setStoredData(STORAGE_KEYS.REAL_USER, originalSuperuser);
     setStoredData(STORAGE_KEYS.CURRENT_USER, resolvedUser);
 
@@ -656,6 +680,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCurrentUser(devUser);
     setRealUser(devUser);
+    setIsSimulatingState(false);
+    setStoredData(STORAGE_KEYS.SIMULATION_ACTIVE, false);
+    setStoredData(STORAGE_KEYS.SIMULATED_USER, null);
+    setStoredData(STORAGE_KEYS.ORIGINAL_DEV_USER, devUser);
     setStoredData(STORAGE_KEYS.REAL_USER, devUser);
     setStoredData(STORAGE_KEYS.CURRENT_USER, devUser);
     setActiveTeamId(devUser.teamId || 'cai-1');
@@ -743,10 +771,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setCurrentUser(null);
     setRealUser(null);
+    setIsSimulatingState(false);
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
         localStorage.removeItem(STORAGE_KEYS.REAL_USER);
+        localStorage.removeItem(STORAGE_KEYS.SIMULATION_ACTIVE);
+        localStorage.removeItem(STORAGE_KEYS.SIMULATED_USER);
+        localStorage.removeItem(STORAGE_KEYS.ORIGINAL_DEV_USER);
         localStorage.removeItem('bcf_auth_current_user_v3');
         localStorage.removeItem('bcf_real_user_v3');
         localStorage.removeItem('bcf_auth_current_user_v4');

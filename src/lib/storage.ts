@@ -19,6 +19,9 @@ const STORAGE_KEYS = {
   ACTIVE_TEAM_FILTER: 'bcf_active_team_filter_v1',
   REAL_USER: 'bcf_real_user_v4',
   THEME: 'bcf_theme_preference_v1',
+  SIMULATION_ACTIVE: 'bcf_simulation_active_v1',
+  SIMULATED_USER: 'bcf_simulated_user_v1',
+  ORIGINAL_DEV_USER: 'bcf_original_dev_user_v1',
 };
 
 export { BCF_TEAMS };

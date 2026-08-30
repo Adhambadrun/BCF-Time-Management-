@@ -136,15 +136,12 @@ export async function seedNeonInitialData() {
       `;
     }
 
-    // Upsert all canonical users, supervisors, and agents
+    // Upsert all canonical users, supervisors, and agents WITHOUT clobbering existing custom avatars in Postgres
     for (const user of INITIAL_USERS) {
       await sql`
         INSERT INTO bcf_users (id, email, data, updated_at)
         VALUES (${user.id}, ${user.email.toLowerCase()}, ${JSON.stringify(user)}, NOW())
-        ON CONFLICT (email) DO UPDATE SET
-          id = EXCLUDED.id,
-          data = EXCLUDED.data,
-          updated_at = NOW()
+        ON CONFLICT (email) DO NOTHING
       `;
     }
 

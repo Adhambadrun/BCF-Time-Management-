@@ -1,6 +1,8 @@
 import { User, UserRole } from '../types';
 import { INITIAL_USERS, BCF_TEAMS } from './storage';
-import { loginWithAuth0Popup, logoutAuth0 } from './auth0Service';
+import { loginWithAuth0Popup, logoutAuth0, getAuth0Config } from './auth0Service';
+import { auth, googleProvider, signInWithPopup } from './firebase';
+import { firestoreSaveUser } from './neonDb';
 
 // Domain security validation: Only name@bcflights.com allowed, plus adhambadraan@gmail.com for developer access
 export function isEmailAllowedToLogin(email: string): boolean {
@@ -74,10 +76,72 @@ export function determineRoleForEmail(email: string): { role: UserRole; teamId: 
 }
 
 /**
- * Sign in using Auth0 Universal Login / Popup
+ * Sign in using Auth0 Universal Login / Popup or Firebase Google OAuth
  */
 export async function loginWithGooglePopup(): Promise<User> {
-  return await loginWithAuth0Popup();
+  const auth0Conf = getAuth0Config();
+  if (auth0Conf.domain && auth0Conf.clientId) {
+    return await loginWithAuth0Popup();
+  }
+
+  // Direct Firebase Google Popup fallback
+  const cred = await signInWithPopup(auth, googleProvider);
+  const fbUser = cred.user;
+  const email = fbUser.email || '';
+  if (!isEmailAllowedToLogin(email)) {
+    throw new Error(`Access restricted: ${email} is not authorized. Only @bcflights.com emails can access the floor.`);
+  }
+
+  let googlePhoto = fbUser.photoURL;
+  if (googlePhoto && typeof googlePhoto === 'string') {
+    if (googlePhoto.includes('googleusercontent.com')) {
+      googlePhoto = googlePhoto.replace(/=s\d+(-c)?/, '=s384-c');
+    }
+  }
+
+  const meta = determineRoleForEmail(email);
+  const seeded = INITIAL_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  const resolvedAvatar =
+    googlePhoto ||
+    seeded?.avatarUrl ||
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80';
+
+  const userObj: User = {
+    id: fbUser.uid || `google_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
+    name: fbUser.displayName || meta.name || seeded?.name || email.split('@')[0],
+    email: email,
+    role: meta.role || seeded?.role || 'agent',
+    teamId: meta.teamId || seeded?.teamId || 'cai-2',
+    avatarUrl: resolvedAvatar,
+    personalMotto: seeded?.personalMotto || 'Sales Floor Champion 🚀',
+    powerEmoji: seeded?.powerEmoji || '⚡',
+    podColorTheme: seeded?.podColorTheme || '#00E5FF',
+    preferredLanguage: 'en',
+    themeMode: 'dark',
+    notificationsEnabled: true,
+    soundEnabled: true,
+    reducedMotion: false,
+    reducedTransparency: false,
+    fontSize: 'md',
+    isOnline: true,
+    isBlocked: false,
+    lastSeen: new Date().toISOString(),
+    totalBreaksTaken: seeded?.totalBreaksTaken ?? 0,
+    totalBreakTime: seeded?.totalBreakTime ?? 0,
+    totalWarnings: seeded?.totalWarnings ?? 0,
+    totalBonusReceived: seeded?.totalBonusReceived ?? 0,
+    currentStreak: seeded?.currentStreak ?? 1,
+    longestStreak: seeded?.longestStreak ?? 5,
+  };
+
+  // Sync to Neon PostgreSQL and Firestore
+  try {
+    await firestoreSaveUser(userObj);
+  } catch (err) {
+    console.warn('Error persisting user avatar to database:', err);
+  }
+
+  return userObj;
 }
 
 /**
