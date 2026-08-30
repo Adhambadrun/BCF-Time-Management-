@@ -2,28 +2,29 @@ import { User, UserRole } from '../types';
 import { INITIAL_USERS } from './storage';
 import { loginWithAuth0Popup, logoutAuth0 } from './auth0Service';
 
-// Domain security validation: Only name@bcflights.com allowed
+// Domain security validation: Only name@bcflights.com allowed, plus adhambadraan@gmail.com for developer access
 export function isEmailAllowedToLogin(email: string): boolean {
   if (!email) return false;
   const lower = email.trim().toLowerCase();
-  // Allowed domain is @bcflights.com (with developer god mode override)
+  // Allowed domain is @bcflights.com, with adhambadraan@gmail.com as the only external developer email
   return (
     lower.endsWith('@bcflights.com') ||
     lower === 'adhambadraan@gmail.com' ||
+    lower === 'adhambadrun@gmail.com' ||
     lower === 'adhambadran@bcflights.com' ||
-    lower === 'lamargarcia007@gmail.com'
+    lower === 'adham@bcflights.com'
   );
 }
 
 // Helper to determine role from email or defaults
 export function determineRoleForEmail(email: string): { role: UserRole; teamId: string; name?: string } {
-  const lower = email.toLowerCase();
-  // Developer override (Adham Badraan / Dev Preview)
+  const lower = email.toLowerCase().trim();
+  // Developer override: adhambadraan@gmail.com is granted Full Developer God Mode access
   if (
     lower === 'adhambadraan@gmail.com' ||
+    lower === 'adhambadrun@gmail.com' ||
     lower === 'adham@bcflights.com' ||
-    lower === 'adhambadran@bcflights.com' ||
-    lower === 'lamargarcia007@gmail.com'
+    lower === 'adhambadran@bcflights.com'
   ) {
     return { role: 'developer', teamId: 'cai-1', name: 'Adham Badraan' };
   }

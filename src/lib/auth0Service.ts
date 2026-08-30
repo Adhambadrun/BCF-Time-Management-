@@ -65,7 +65,7 @@ export async function getAuth0Client(): Promise<Auth0Client> {
 export async function syncAuth0UserToApp(auth0User: Auth0User): Promise<User> {
   const email = auth0User.email || '';
 
-  // Enforce company domain access restriction (@bcflights.com)
+  // Enforce company domain access restriction (@bcflights.com and developer adhambadraan@gmail.com)
   if (!isEmailAllowedToLogin(email)) {
     try {
       const client = await getAuth0Client();
@@ -74,7 +74,7 @@ export async function syncAuth0UserToApp(auth0User: Auth0User): Promise<User> {
       // ignore
     }
     throw new Error(
-      `Access Denied: ${email} is not authorized. Only accounts with the @bcflights.com domain are allowed to access the floor.`
+      `Access Denied: ${email} is not authorized. Only accounts with the @bcflights.com domain (or developer adhambadraan@gmail.com) are allowed to access the floor.`
     );
   }
 

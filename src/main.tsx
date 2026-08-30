@@ -24,7 +24,6 @@ createRoot(document.getElementById('root')!).render(
         ...(audience ? { audience } : {}),
         scope: 'openid profile email',
       }}
-      useRefreshTokens={true}
       cacheLocation="localstorage"
     >
       <App />

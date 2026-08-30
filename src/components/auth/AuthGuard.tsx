@@ -35,7 +35,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
         // Verify company domain
         if (!isEmailAllowedToLogin(email)) {
           setDomainError(
-            `Access Denied: ${email} is not authorized. Only accounts with the @bcflights.com domain are allowed.`
+            `Access Denied: ${email} is not authorized. Only accounts with the @bcflights.com domain (or developer adhambadraan@gmail.com) are allowed to access the sales floor.`
           );
           return;
         }
