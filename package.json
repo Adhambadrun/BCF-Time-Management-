@@ -12,6 +12,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@auth0/auth0-react": "^2.24.1",
     "@auth0/auth0-spa-js": "^2.24.1",
     "@google/genai": "^2.4.0",
     "@neondatabase/serverless": "^1.1.0",

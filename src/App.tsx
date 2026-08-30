@@ -20,6 +20,7 @@ import { NewsPanel } from './components/ticker/NewsPanel';
 import { ModalManager } from './components/modals/ModalManager';
 import { FloorAlertOverlays } from './components/shared/FloorAlertOverlays';
 import { LoginCard } from './components/auth/LoginCard';
+import { AuthGuard } from './components/auth/AuthGuard';
 import { VoiceFloorAssistant } from './components/voice/VoiceFloorAssistant';
 import { SearchGroundingWidget } from './components/intelligence/SearchGroundingWidget';
 import { TeamViewToggle } from './components/shared/TeamViewToggle';
@@ -162,7 +163,9 @@ const AppContent: React.FC = () => {
 export default function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <AuthGuard>
+        <AppContent />
+      </AuthGuard>
     </AppProvider>
   );
 }

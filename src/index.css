@@ -172,7 +172,7 @@
 .animate-marquee {
   display: flex;
   width: max-content;
-  animation: marquee 35s linear infinite;
+  animation: marquee 85s linear infinite;
 }
 
 .animate-marquee:hover {
@@ -182,7 +182,7 @@
 .animate-marquee-slow {
   display: flex;
   width: max-content;
-  animation: marquee 45s linear infinite;
+  animation: marquee 110s linear infinite;
 }
 
 .animate-marquee-slow:hover {
@@ -190,7 +190,13 @@
 }
 
 .animate-marquee-urgent {
-  animation: marquee 20s linear infinite;
+  display: flex;
+  width: max-content;
+  animation: marquee 55s linear infinite;
+}
+
+.animate-marquee-urgent:hover {
+  animation-play-state: paused;
 }
 
 /* Custom modern scrollbars */
