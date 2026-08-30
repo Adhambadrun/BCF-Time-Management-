@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AgentPod } from './AgentPod';
+import { AgentBreakLiveBanner } from './AgentBreakLiveBanner';
+import { AgentPerformanceCard } from './AgentPerformanceCard';
 import { TeamOverviewWidget } from './TeamOverviewWidget';
 import { motion, AnimatePresence } from 'motion/react';
 import { GLIDE, SNAP } from '../../styles/motion-presets';
@@ -305,6 +307,12 @@ export const PodGrid: React.FC<PodGridProps> = ({ selectedTeamId: propSelectedTe
 
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 py-6 space-y-6">
+      {/* Visual Progress Bar & Countdown Timer for Active Break */}
+      <AgentBreakLiveBanner />
+
+      {/* Agent Performance Card: Total Break Time Used vs Allowed */}
+      <AgentPerformanceCard />
+
       {/* ========================================================================= */}
       {/* 1. ADMIN / DEV / SUPERVISOR TEAM SWITCHER NAVIGATION BAR & FILTER CONTROLS */}
       {/* ========================================================================= */}

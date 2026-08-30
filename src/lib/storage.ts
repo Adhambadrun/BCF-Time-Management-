@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   COMPETITIONS: 'bcf_competitions_v3',
   DAILY_LOGS: 'bcf_daily_logs_v3',
   ACTIVE_TEAM_FILTER: 'bcf_active_team_filter_v1',
+  REAL_USER: 'bcf_real_user_v3',
 };
 
 export const INITIAL_TEAMS: Team[] = [

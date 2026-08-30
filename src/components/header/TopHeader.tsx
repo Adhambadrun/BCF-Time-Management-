@@ -11,6 +11,9 @@ import { NotificationDrawer } from '../notifications/NotificationDrawer';
 export const TopHeader: React.FC = () => {
   const {
     currentUser,
+    realUser,
+    isSimulating,
+    exitSimulation,
     users,
     loginAs,
     teams,
@@ -34,7 +37,12 @@ export const TopHeader: React.FC = () => {
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const isAdham = currentUser?.email?.toLowerCase() === 'adhambadraan@gmail.com' || currentUser?.email?.toLowerCase() === 'adhambadran@bcflights.com';
+  const isAdham =
+    currentUser?.email?.toLowerCase() === 'adhambadraan@gmail.com' ||
+    currentUser?.email?.toLowerCase() === 'adhambadran@bcflights.com' ||
+    realUser?.email?.toLowerCase() === 'adhambadraan@gmail.com' ||
+    realUser?.role === 'developer' ||
+    currentUser?.role === 'developer';
 
   const isAllTeams = activeTeamId === 'ALL';
   const totalFloorAgents = users.filter(u => u.role === 'agent').length;
@@ -365,8 +373,8 @@ export const TopHeader: React.FC = () => {
               </button>
             )}
 
-            {/* Developer God Mode ⚡ Icon (Exclusive to Developer) */}
-            {currentUser?.role === 'developer' && (
+            {/* Developer God Mode ⚡ Icon (Exclusive to Developer / Active Simulation) */}
+            {(currentUser?.role === 'developer' || realUser?.role === 'developer' || isSimulating) && (
               <button
                 onClick={() => {
                   setIsGodModeOpen(true);
@@ -433,6 +441,28 @@ export const TopHeader: React.FC = () => {
                           </span>
                         </div>
                       </div>
+
+                      {/* Active Simulation Mode Banner in Dropdown */}
+                      {isSimulating && (
+                        <div className="p-2.5 mb-2 rounded-xl bg-amber-400/10 border border-amber-400/30">
+                          <div className="text-[10px] font-orbitron uppercase text-amber-400 font-bold flex items-center justify-between">
+                            <span>Simulating User</span>
+                            <span className="text-[8px] px-1.5 py-0.2 rounded bg-amber-400 text-black font-extrabold">ACTIVE</span>
+                          </div>
+                          <div className="text-[11px] text-zinc-300 mt-1">
+                            Superuser: <span className="text-white font-semibold">{realUser?.name}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              exitSimulation();
+                              setIsDropdownOpen(false);
+                            }}
+                            className="w-full mt-2 py-1.5 px-2.5 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-black font-orbitron font-black text-[11px] flex items-center justify-center gap-1 transition-transform hover:scale-[1.02] cursor-pointer"
+                          >
+                            Exit Simulation (Return to Dev)
+                          </button>
+                        </div>
+                      )}
 
                       {/* Nav Actions */}
                       <button

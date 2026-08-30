@@ -13,6 +13,7 @@ import { PodGrid } from './components/pods/PodGrid';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { SupervisorDashboard } from './components/supervisor/SupervisorDashboard';
 import { GodModePanel } from './components/developer/GodModePanel';
+import { SimulationToolbar } from './components/developer/SimulationToolbar';
 import { MessagesPanel } from './components/messaging/MessagesPanel';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { NewsPanel } from './components/ticker/NewsPanel';
@@ -145,6 +146,7 @@ const AppContent: React.FC = () => {
       </main>
 
       {/* Slide-in Drawers & Full Screen Dialogs */}
+      <SimulationToolbar />
       <MessagesPanel />
       <SettingsPanel />
       <GodModePanel />

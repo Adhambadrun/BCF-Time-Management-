@@ -42,6 +42,8 @@ import { playSound } from '../../lib/sound';
 import { BreakType, UserRole } from '../../types';
 import { SystemAdminModal } from './SystemAdminModal';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
+import { motion, AnimatePresence } from 'motion/react';
+import { GLIDE } from '../../styles/motion-presets';
 
 const EMBLEM_PRESETS = [
   { label: 'Eagle Strike', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80' },
@@ -196,17 +198,32 @@ export const ModalManager: React.FC = () => {
     'shiftNote',
   ];
 
-  if (!activeModal || !KNOWN_MODAL_NAMES.includes(activeModal)) return null;
+  const isModalOpen = Boolean(activeModal && KNOWN_MODAL_NAMES.includes(activeModal));
 
   return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          closeModal();
-        }
-      }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl overflow-y-auto"
-    >
+    <AnimatePresence>
+      {isModalOpen && (
+        <motion.div
+          key="modal-overlay-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              closeModal();
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl overflow-y-auto"
+        >
+          <motion.div
+            key={activeModal}
+            initial={{ opacity: 0, scale: 0.94, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 16 }}
+            transition={GLIDE}
+            className="w-full max-w-4xl flex justify-center items-center"
+          >
       {/* 1. WARNING ISSUANCE MODAL (PART 12) */}
       {activeModal === 'warning' && (
         <GlassPanel material="thick" className="w-full max-w-lg p-6 border-2 border-yellow-400/50 shadow-2xl">
@@ -2214,6 +2231,9 @@ export const ModalManager: React.FC = () => {
           </div>
         </GlassPanel>
       )}
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

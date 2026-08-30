@@ -20,6 +20,9 @@ export const GodModePanel: React.FC = () => {
     exportDataJSON,
     loginAs,
     currentUser,
+    realUser,
+    isSimulating,
+    exitSimulation,
     openModal,
   } = useApp();
 
@@ -172,9 +175,42 @@ export const GodModePanel: React.FC = () => {
 
               {/* Impersonation Matrix */}
               <GlassPanel material="regular" className="p-5 border border-white/10">
-                <h3 className="font-orbitron font-bold text-sm text-yellow-400 mb-3">
-                  Superuser Instant Impersonation Matrix
-                </h3>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div>
+                    <h3 className="font-orbitron font-bold text-sm text-yellow-400">
+                      Superuser Instant Impersonation Matrix
+                    </h3>
+                    <p className="text-[11px] text-zinc-400 font-inter">
+                      Simulate any account without authentication lockouts. Floating simulation toolbar stays active on screen.
+                    </p>
+                  </div>
+
+                  {isSimulating && (
+                    <button
+                      onClick={() => {
+                        exitSimulation();
+                        playSound('bonus');
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-orbitron font-black text-xs shadow-md transition-transform hover:scale-105 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Exit Simulation Mode (Return to Dev)</span>
+                    </button>
+                  )}
+                </div>
+
+                {isSimulating && (
+                  <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                      <span className="text-xs font-orbitron text-amber-300">
+                        Currently simulating: <strong className="text-white">{currentUser?.name}</strong> ({currentUser?.role.toUpperCase()})
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-zinc-400 font-inter">
+                      Superuser Origin: {realUser?.name}
+                    </span>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                   {users.map(u => (
                     <button

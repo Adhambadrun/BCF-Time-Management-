@@ -924,6 +924,32 @@ export const AgentPod: React.FC<AgentPodProps> = ({
             <ShieldAlert className="w-3 h-3" />
             <span>BREAKS BLOCKED</span>
           </div>
+        ) : isOnBreak ? (
+          <div className="w-full mt-1 px-1 flex flex-col items-center">
+            {/* Linear Depletion Progress Bar with Green -> Yellow -> Red transitions */}
+            <div className="w-full h-1.5 rounded-full bg-zinc-800/80 border border-white/10 overflow-hidden relative shadow-inner">
+              <div
+                className="h-full rounded-full transition-all duration-1000 ease-linear shadow-[0_0_8px_currentColor]"
+                style={{
+                  width: isOvertime ? '100%' : `${remainingPercent}%`,
+                  backgroundColor: currentDepletionColor,
+                  color: currentDepletionColor,
+                }}
+              />
+            </div>
+            {/* Real-time countdown & remaining percent */}
+            <div
+              className="flex items-center justify-between w-full text-[9px] font-orbitron mt-0.5 font-bold"
+              style={{ color: currentDepletionColor }}
+            >
+              <span>{isOvertime ? 'OVERTIME' : `${remainingPercent}% LEFT`}</span>
+              <span className="font-mono">
+                {isOvertime
+                  ? `+${formatTimer(activeBreak.duration - totalSlotSeconds)}`
+                  : formatTimer(remainingSeconds)}
+              </span>
+            </div>
+          </div>
         ) : (!isAgentRole || isSelf) ? (
           <div className="font-teko text-base sm:text-lg text-yellow-400 leading-none">
             {totalBreakMinutes}m / {maxBudget}m

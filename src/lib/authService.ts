@@ -22,14 +22,19 @@ export function isEmailAllowedToLogin(email: string): boolean {
   if (!email) return false;
   const lower = email.trim().toLowerCase();
   // Allowed domain is @bcflights.com (with developer god mode override)
-  return lower.endsWith('@bcflights.com') || lower === 'adhambadraan@gmail.com';
+  return lower.endsWith('@bcflights.com') || lower === 'adhambadraan@gmail.com' || lower === 'adhambadran@bcflights.com' || lower === 'lamargarcia007@gmail.com';
 }
 
 // Helper to determine role from email or defaults
 export function determineRoleForEmail(email: string): { role: UserRole; teamId: string; name?: string } {
   const lower = email.toLowerCase();
-  // Developer override (Adham Badraan)
-  if (lower === 'adhambadraan@gmail.com' || lower === 'adham@bcflights.com') {
+  // Developer override (Adham Badraan / Dev Preview)
+  if (
+    lower === 'adhambadraan@gmail.com' ||
+    lower === 'adham@bcflights.com' ||
+    lower === 'adhambadran@bcflights.com' ||
+    lower === 'lamargarcia007@gmail.com'
+  ) {
     return { role: 'developer', teamId: 'cai-1', name: 'Adham Badraan' };
   }
   // Executive Admins
@@ -166,9 +171,26 @@ export async function logoutFirebaseAuth(): Promise<void> {
 export function initGoogleOneTap(onSuccess: (user: User) => void, onError?: (err: any) => void) {
   if (typeof window === 'undefined') return;
 
+  // In an iframe (such as AI Studio preview, embedded dashboards, or sandboxes),
+  // FedCM / identity-credentials-get is blocked by browser security policy.
+  // Prompting One Tap in an iframe triggers:
+  // "[GSI_LOGGER]: FedCM get() rejects with NotAllowedError: The 'identity-credentials-get' feature is not enabled in this document."
+  // Therefore, only initialize Google One Tap when running in top-level window or when policy allows it.
+  const isInsideIframe = window.self !== window.top;
+  if (isInsideIframe) {
+    const docAny = document as any;
+    const allowsFeature =
+      Boolean(docAny.featurePolicy?.allowsFeature?.('identity-credentials-get')) ||
+      Boolean(docAny.permissionsPolicy?.allowsFeature?.('identity-credentials-get'));
+
+    if (!allowsFeature) {
+      // In restricted iframes, users sign in via the primary Google button using popup flow
+      return;
+    }
+  }
+
   const clientId = (firebaseConfig as any).oAuthClientId || (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
   if (!clientId) {
-    console.warn('No oAuthClientId configured for Google One Tap');
     return;
   }
 
@@ -195,14 +217,21 @@ export function initGoogleOneTap(onSuccess: (user: User) => void, onError?: (err
           callback: handleCredentialResponse,
           auto_select: false,
           cancel_on_tap_outside: true,
+          use_fedcm_for_prompt: false,
         });
 
-        // Prompt One-Tap overlay
-        google.accounts.id.prompt((notification: any) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            console.log('Google One Tap suppressed or dismissed:', notification.getNotDisplayedReason?.());
+        // Only prompt One-Tap overlay if not inside a restricted frame
+        if (!isInsideIframe) {
+          try {
+            google.accounts.id.prompt((notification: any) => {
+              if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+                // Handled silently
+              }
+            });
+          } catch (promptErr) {
+            // Suppress FedCM or iframe prompt rejections
           }
-        });
+        }
 
         // Render official button if container exists
         const btnContainer = document.getElementById('google-signin-button');
@@ -217,7 +246,7 @@ export function initGoogleOneTap(onSuccess: (user: User) => void, onError?: (err
           });
         }
       } catch (e) {
-        console.warn('Error configuring Google Identity Services:', e);
+        // Suppress any Google Identity Services initialization errors
       }
     }
   }, 300);

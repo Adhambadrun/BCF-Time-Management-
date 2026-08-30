@@ -37,6 +37,10 @@ import confetti from 'canvas-confetti';
 
 interface AppContextType {
   currentUser: User | null;
+  realUser: User | null;
+  isSimulating: boolean;
+  exitSimulation: () => void;
+  switchSimulatedUser: (email: string) => void;
   users: User[];
   teams: Team[];
   activeTeamId: string;
@@ -131,6 +135,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Live Real User: Adham Badran (adhambadraan@gmail.com - Developer God Mode)
     return INITIAL_USERS.find(u => u.email === 'adhambadraan@gmail.com') || null;
   });
+
+  const [realUser, setRealUser] = useState<User | null>(() => {
+    const saved = getStoredData<User | null>(STORAGE_KEYS.REAL_USER, null);
+    if (saved && saved.email) {
+      const match = INITIAL_USERS.find(u => u.email === saved.email);
+      return match ? { ...match, ...saved } : saved;
+    }
+    return INITIAL_USERS.find(u => u.email === 'adhambadraan@gmail.com') || null;
+  });
+
+  const isSimulating = Boolean(
+    realUser &&
+    currentUser &&
+    (realUser.email.toLowerCase() !== currentUser.email.toLowerCase() ||
+     realUser.role !== currentUser.role)
+  );
 
   const [activeTeamId, setActiveTeamId] = useState<string>(() => {
     const sessionTeam = getSessionData<string | null>(STORAGE_KEYS.ACTIVE_TEAM_FILTER, null);
@@ -248,6 +268,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => setStoredData(STORAGE_KEYS.USERS, users), [users]);
   useEffect(() => setStoredData(STORAGE_KEYS.TEAMS, teams), [teams]);
   useEffect(() => setStoredData(STORAGE_KEYS.CURRENT_USER, currentUser), [currentUser]);
+  useEffect(() => setStoredData(STORAGE_KEYS.REAL_USER, realUser), [realUser]);
   useEffect(() => setStoredData(STORAGE_KEYS.BREAKS, breaks), [breaks]);
   useEffect(() => setStoredData(STORAGE_KEYS.WC_TRACKING, wcTracking), [wcTracking]);
   useEffect(() => setStoredData(STORAGE_KEYS.WARNINGS, warnings), [warnings]);
@@ -488,11 +509,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (user) {
+      if (!realUser && currentUser) {
+        setRealUser(currentUser);
+      } else if (!realUser) {
+        const defaultDev = users.find(u => u.role === 'developer') || INITIAL_USERS[0];
+        setRealUser(defaultDev);
+      }
       setCurrentUser(user);
       if (user.role !== 'admin' && user.role !== 'developer') {
         setActiveTeamId(user.teamId);
       }
       playSound('click');
+      addHeadline(`🎭 Simulating ${user.name} (${user.role.toUpperCase()}) — Developer Toolbar Active`, 'info', 'normal');
+    }
+  };
+
+  const switchSimulatedUser = (email: string) => {
+    loginAs(email);
+  };
+
+  const exitSimulation = () => {
+    if (realUser) {
+      setCurrentUser(realUser);
+      if (realUser.role !== 'agent') {
+        setActiveTeamId(realUser.teamId || 'cai-1');
+      }
+      playSound('bonus');
+      addHeadline(`👑 Returned to Developer Context: ${realUser.name} (${realUser.role.toUpperCase()})`, 'info', 'normal');
+    } else {
+      const dev = users.find(u => u.role === 'developer') || INITIAL_USERS[0];
+      setCurrentUser(dev);
+      setRealUser(dev);
+      playSound('bonus');
+      addHeadline(`👑 Returned to Developer Context: ${dev.name}`, 'info', 'normal');
     }
   };
 
@@ -511,6 +560,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [user, ...prev];
     });
     setCurrentUser(user);
+    setRealUser(user);
     if (user.role !== 'admin' && user.role !== 'developer') {
       setActiveTeamId(user.teamId);
     }
@@ -538,6 +588,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Ignore logout errors
     }
     setCurrentUser(null);
+    setRealUser(null);
     closeModal();
     setIsGodModeOpen(false);
     setIsSettingsOpen(false);
@@ -1590,6 +1641,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         currentUser,
+        realUser,
+        isSimulating,
+        exitSimulation,
+        switchSimulatedUser,
         users,
         teams,
         activeTeamId,

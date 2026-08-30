@@ -5,6 +5,7 @@ import { Users, Clock, AlertTriangle, Award, HeartHandshake, FileText, CheckCirc
 import { playSound } from '../../lib/sound';
 import { useBatchActions, BatchActionType } from '../../hooks/useBatchActions';
 import { BatchActionToolbar } from './BatchActionToolbar';
+import { BreakOverlapAlert } from './BreakOverlapAlert';
 import { AgentPod } from '../pods/AgentPod';
 import { AnimatePresence, motion } from 'motion/react';
 import { GLIDE } from '../../styles/motion-presets';
@@ -19,6 +20,7 @@ export const SupervisorDashboard: React.FC = () => {
     warnings,
     shiftNotes,
     openModal,
+    endBreak,
     downloadActivityLogsCSV,
     executeBatchAction: executeContextBatchAction,
   } = useApp();
@@ -101,6 +103,14 @@ export const SupervisorDashboard: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Break Overlaps > 15 Mins Notification & Action Alert */}
+      <BreakOverlapAlert
+        breaks={teamBreaks}
+        users={users}
+        teamId={activeTeamId}
+        onForceEndBreak={endBreak}
+      />
 
       {/* Wellness & Attendance Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
