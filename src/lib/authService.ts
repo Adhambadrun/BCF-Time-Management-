@@ -27,34 +27,42 @@ export function isEmailAllowedToLogin(email: string): boolean {
 // Helper to determine role from email or defaults
 export function determineRoleForEmail(email: string): { role: UserRole; teamId: string; name?: string } {
   const lower = email.toLowerCase();
-  // Developer override (Adham)
+  // Developer override (Adham Badraan)
   if (lower === 'adhambadraan@gmail.com' || lower === 'adham@bcflights.com') {
-    return { role: 'developer', teamId: 'team_strikers', name: 'Adham Badran' };
+    return { role: 'developer', teamId: 'cai-1', name: 'Adham Badraan' };
   }
-  // Admin
-  if (lower.includes('admin') || lower === 'karim.admin@bcflights.com' || lower === 'maya.admin@bcflights.com') {
-    return { role: 'admin', teamId: 'team_strikers' };
+  // Executive Admins
+  if (lower === 'meredith@bcflights.com' || lower.includes('meredith')) {
+    return { role: 'admin', teamId: 'cai-1', name: 'Meredith Devereux' };
+  }
+  if (lower === 'atlas@bcflights.com' || lower.includes('atlas')) {
+    return { role: 'admin', teamId: 'cai-1', name: 'Atlas Mavridis' };
   }
   // Supervisors
-  if (lower.includes('supervisor') || lower === 'tarek.zaki@bcflights.com') {
-    return { role: 'supervisor', teamId: 'team_strikers' };
+  if (lower === 'dominick@bcflights.com' || lower.includes('dominick')) {
+    return { role: 'supervisor', teamId: 'cai-1', name: 'Dominick Grant' };
   }
-  if (lower === 'rania.fawzy@bcflights.com') {
-    return { role: 'supervisor', teamId: 'team_titans' };
+  if (lower === 'jay@bcflights.com' || lower.includes('jay')) {
+    return { role: 'supervisor', teamId: 'cai-2', name: 'Jay Morgan' };
   }
-  if (lower === 'omar.nabil@bcflights.com') {
-    return { role: 'supervisor', teamId: 'team_apex' };
+  if (lower === 'albert@bcflights.com' || lower.includes('albert')) {
+    return { role: 'supervisor', teamId: 'cai-3', name: 'Albert Cooper' };
   }
-  if (lower === 'dina.helmy@bcflights.com') {
-    return { role: 'supervisor', teamId: 'team_phantom' };
+  if (lower === 'watkins@bcflights.com' || lower.includes('watkins')) {
+    return { role: 'supervisor', teamId: 'cai-4', name: 'Watkins West' };
   }
+  if (lower === 'amir@bcflights.com' || lower.includes('amir')) {
+    return { role: 'supervisor', teamId: 'cai-5', name: 'Amir Malik' };
+  }
+
   // Check if matches any existing seeded user
   const seeded = INITIAL_USERS.find(u => u.email.toLowerCase() === lower);
   if (seeded) {
     return { role: seeded.role, teamId: seeded.teamId, name: seeded.name };
   }
-  // Default to agent on team strikers
-  return { role: 'agent', teamId: 'team_strikers' };
+
+  // Default fallback
+  return { role: 'agent', teamId: 'cai-2' };
 }
 
 /**

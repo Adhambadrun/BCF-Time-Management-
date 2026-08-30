@@ -3,7 +3,10 @@ import { useApp } from '../../context/AppContext';
 import { AgentPod } from './AgentPod';
 import { motion, AnimatePresence } from 'motion/react';
 import { GLIDE, SNAP } from '../../styles/motion-presets';
-import { Clock, Coffee, ShieldAlert, Sparkles, UserCheck } from 'lucide-react';
+import { Clock, Sparkles, CheckSquare, Square } from 'lucide-react';
+import { playSound } from '../../lib/sound';
+import { useBatchActions, BatchActionType } from '../../hooks/useBatchActions';
+import { BatchActionToolbar } from '../supervisor/BatchActionToolbar';
 
 export const PodGrid: React.FC = () => {
   const {
@@ -15,6 +18,7 @@ export const PodGrid: React.FC = () => {
     shiftConfig,
     endBreak,
     openModal,
+    executeBatchAction: executeContextBatchAction,
   } = useApp();
 
   // Strict role isolation: Agents ONLY see their assigned team
@@ -38,6 +42,27 @@ export const PodGrid: React.FC = () => {
   // Active breaks in this team
   const activeTeamBreaks = breaks.filter(
     b => b.isActive && (b.teamId === effectiveTeamId || teamAgents.some(a => a.email === b.agentEmail))
+  );
+
+  // Custom Batch Actions Hook with local context synchronization
+  const {
+    selectedAgentIds,
+    toggleSelectAgent,
+    toggleSelectAll,
+    clearSelection,
+    executeBatchAction,
+    isAllSelected,
+    hasSelection,
+  } = useBatchActions(
+    teamAgents.map(a => a.email),
+    (action: BatchActionType, ids: string[]) => {
+      const mappedAction = action === 'WARNING' ? 'WARN' : action;
+      executeContextBatchAction(mappedAction, ids, {
+        forcedBy: currentUser?.name || 'Supervisor',
+        warningReason: action === 'WARNING' ? 'Supervisor Batch Warning' : undefined,
+        warningNote: action === 'WARNING' ? 'Issued via Supervisor Command Bar' : undefined,
+      });
+    }
   );
 
   // Helper format MM:SS
@@ -184,9 +209,44 @@ export const PodGrid: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Floor Pods Header Toolbar (Management Actions for Dev & Admin) */}
-      <div className="flex items-center justify-between gap-3 mb-5 border-b border-white/10 pb-3">
-        <div className="flex items-center gap-2.5">
+      {/* FROSTED GLASS MULTI-SELECT TOOLBAR (Liquid Glass framer-motion entrance) */}
+      <AnimatePresence>
+        {canManageTeam && hasSelection && (
+          <BatchActionToolbar
+            selectedCount={selectedAgentIds.length}
+            totalCount={teamAgents.length}
+            isAllSelected={isAllSelected}
+            onToggleSelectAll={toggleSelectAll}
+            onExecuteAction={executeBatchAction}
+            onClearSelection={clearSelection}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Floor Pods Header Toolbar (Management Actions for Dev & Admin & Multi-Select) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 border-b border-white/10 pb-3">
+        <div className="flex items-center gap-3">
+          {canManageTeam && teamAgents.length > 0 && (
+            <button
+              onClick={toggleSelectAll}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-orbitron font-semibold transition-all border cursor-pointer ${
+                isAllSelected
+                  ? 'bg-yellow-400 text-black border-yellow-400 shadow-[0_0_10px_#FFD700]'
+                  : hasSelection
+                  ? 'bg-yellow-400/20 text-yellow-300 border-yellow-400/50'
+                  : 'bg-black/40 text-zinc-400 border-white/10 hover:border-white/30'
+              }`}
+              title={isAllSelected ? 'Deselect All Agents' : 'Select All Agents in Floor'}
+            >
+              {isAllSelected ? (
+                <CheckSquare className="w-3.5 h-3.5 text-black" />
+              ) : (
+                <Square className="w-3.5 h-3.5 text-zinc-400" />
+              )}
+              <span>{isAllSelected ? 'Deselect All' : 'Select All'}</span>
+            </button>
+          )}
+
           <div
             className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]"
             style={{ backgroundColor: currentTeam.teamColorAccent, color: currentTeam.teamColorAccent }}
@@ -258,6 +318,7 @@ export const PodGrid: React.FC = () => {
               0
             );
             const isOwnPod = currentUser?.email === agent.email;
+            const isSelected = selectedAgentIds.includes(agent.email);
 
             return (
               <AgentPod
@@ -268,6 +329,9 @@ export const PodGrid: React.FC = () => {
                 totalBreakMinutes={totalBreakMinutes}
                 isOwnPod={isOwnPod}
                 canManage={canManageTeam}
+                isSelected={isSelected}
+                onToggleSelect={toggleSelectAgent}
+                selectionMode={hasSelection}
               />
             );
           })}
@@ -276,3 +340,4 @@ export const PodGrid: React.FC = () => {
     </div>
   );
 };
+

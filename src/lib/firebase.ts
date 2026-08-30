@@ -19,6 +19,8 @@ import {
   updateDoc,
   getDocs,
   deleteDoc,
+  writeBatch,
+  serverTimestamp,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -51,6 +53,8 @@ export {
   updateDoc,
   getDocs,
   deleteDoc,
+  writeBatch,
+  serverTimestamp,
   GoogleAuthProvider,
 };
 export type { FirebaseUser };

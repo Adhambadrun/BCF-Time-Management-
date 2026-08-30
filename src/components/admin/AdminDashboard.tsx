@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { GlassPanel } from '../shared/GlassPanel';
-import { Users, Clock, AlertTriangle, ShieldCheck, TrendingUp, Search, Plus, Radio, Award, AlertOctagon, UserPlus, Sliders } from 'lucide-react';
+import { Users, Clock, AlertTriangle, ShieldCheck, TrendingUp, Search, Plus, Radio, Award, AlertOctagon, UserPlus, Sliders, Download, FileSpreadsheet } from 'lucide-react';
 import { playSound } from '../../lib/sound';
 import { BreakEfficiencyChart } from './BreakEfficiencyChart';
+import { CsvExportModal } from '../modals/CsvExportModal';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -16,10 +17,13 @@ export const AdminDashboard: React.FC = () => {
     openModal,
     shiftConfig,
     currentUser,
+    downloadActivityLogsCSV,
+    dailyLogs,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<'all' | 'agent' | 'supervisor'>('all');
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
 
   const team = teams.find(t => t.teamId === activeTeamId) || teams[0];
   const allTeamAgents = users.filter(u => u.teamId === activeTeamId && (selectedRoleFilter === 'all' || u.role === selectedRoleFilter));
@@ -52,6 +56,19 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* CSV Exporter Button */}
+          <button
+            onClick={() => {
+              setIsCsvModalOpen(true);
+              playSound('click');
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-orbitron font-semibold shadow-lg transition-all cursor-pointer hover:scale-105 active:scale-95"
+            title="Open CSV Report Exporter & Scheduler"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span>Export CSV</span>
+          </button>
+
           <button
             onClick={() => openModal('editTeam', team)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-yellow-400/20 hover:bg-yellow-400/30 border border-yellow-400/40 text-yellow-300 text-xs font-orbitron font-semibold shadow-lg transition-all"
@@ -283,6 +300,12 @@ export const AdminDashboard: React.FC = () => {
           </table>
         </div>
       </GlassPanel>
+
+      {/* CSV Export & Scheduler Modal */}
+      <CsvExportModal
+        isOpen={isCsvModalOpen}
+        onClose={() => setIsCsvModalOpen(false)}
+      />
     </div>
   );
 };

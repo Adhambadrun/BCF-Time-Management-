@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, Team, BreakRecord, WCTracking, Warning, SNNHeadline, ShiftConfig, ChatMessage, Broadcast, AuditLogEntry, ShiftNote, BreakType, UserRole } from '../types';
-import { getStoredData, setStoredData, STORAGE_KEYS, INITIAL_USERS, INITIAL_TEAMS, INITIAL_BREAKS, INITIAL_WC_TRACKING, INITIAL_WARNINGS, INITIAL_HEADLINES, INITIAL_CONFIG } from '../lib/storage';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { User, Team, BreakRecord, WCTracking, Warning, SNNHeadline, ShiftConfig, ChatMessage, Broadcast, AuditLogEntry, ShiftNote, BreakType, UserRole, ActivityLogExport, BatchActionType } from '../types';
+import { getStoredData, setStoredData, STORAGE_KEYS, INITIAL_USERS, INITIAL_TEAMS, INITIAL_BREAKS, INITIAL_WC_TRACKING, INITIAL_WARNINGS, INITIAL_HEADLINES, INITIAL_CONFIG, INITIAL_DAILY_LOGS } from '../lib/storage';
 import { playSound } from '../lib/sound';
 import { loginWithGooglePopup, logoutFirebaseAuth, isEmailAllowedToLogin } from '../lib/authService';
 import {
@@ -11,6 +11,7 @@ import {
   subscribeToFirestoreConfig,
   subscribeToFirestoreTeams,
   subscribeToFirestoreUsers,
+  subscribeToFirestoreDailyLogs,
   firestoreSaveBreak,
   firestoreSaveWCTracking,
   firestoreSaveWarning,
@@ -20,6 +21,9 @@ import {
   firestoreSaveUser,
   firestoreSaveTeam,
   firestoreDeleteTeam,
+  firestoreHeartbeat,
+  firestoreSaveDailyLog,
+  executeFirestoreBatchAction,
 } from '../lib/firestoreDb';
 import confetti from 'canvas-confetti';
 
@@ -37,6 +41,7 @@ interface AppContextType {
   broadcasts: Broadcast[];
   auditLogs: AuditLogEntry[];
   shiftNotes: ShiftNote[];
+  dailyLogs: ActivityLogExport[];
   isShiftActive: boolean;
   timeRemainingInShift: string;
   activeBreaksCount: number;
@@ -92,6 +97,9 @@ interface AppContextType {
   addHeadline: (text: string, category: SNNHeadline['category'], priority?: SNNHeadline['priority']) => void;
   resetAllBreaks: () => void;
   exportDataJSON: () => string;
+  executeBatchAction: (action: BatchActionType, selectedAgentEmails: string[], options?: { forcedBy?: string; warningReason?: string; warningNote?: string }) => Promise<{ success: boolean }>;
+  exportActivityLogsCSV: (timeframe: 'today' | 'yesterday' | '7days') => string;
+  downloadActivityLogsCSV: (timeframe: 'today' | 'yesterday' | '7days') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -119,6 +127,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>(() => getStoredData(STORAGE_KEYS.BROADCASTS, []));
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => getStoredData(STORAGE_KEYS.AUDIT_LOGS, []));
   const [shiftNotes, setShiftNotes] = useState<ShiftNote[]>(() => getStoredData(STORAGE_KEYS.NOTES, []));
+  const [dailyLogs, setDailyLogs] = useState<ActivityLogExport[]>(() => getStoredData(STORAGE_KEYS.DAILY_LOGS, INITIAL_DAILY_LOGS));
+
+  // Inactivity tracking reference
+  const lastLocalInteractionRef = useRef<number>(Date.now());
 
   // Modal / panel states
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -129,6 +141,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isNewsPanelOpen, setIsNewsPanelOpen] = useState(false);
   const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState(false);
   const [isSearchGroundingOpen, setIsSearchGroundingOpen] = useState(false);
+
+  // User activity listeners
+  useEffect(() => {
+    const handleActivity = () => {
+      lastLocalInteractionRef.current = Date.now();
+    };
+
+    window.addEventListener('mousemove', handleActivity, { passive: true });
+    window.addEventListener('keydown', handleActivity, { passive: true });
+    window.addEventListener('touchstart', handleActivity, { passive: true });
+    window.addEventListener('click', handleActivity, { passive: true });
+    window.addEventListener('scroll', handleActivity, { passive: true });
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+    };
+  }, []);
 
   // Real-time Firestore synchronization on mount
   useEffect(() => {
@@ -174,6 +207,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    const unsubDailyLogs = subscribeToFirestoreDailyLogs((remoteLogs) => {
+      if (remoteLogs && remoteLogs.length > 0) {
+        setDailyLogs(remoteLogs);
+      }
+    });
+
     return () => {
       unsubBreaks();
       unsubWc();
@@ -182,6 +221,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubConfig();
       unsubTeams();
       unsubUsers();
+      unsubDailyLogs();
     };
   }, []);
 
@@ -198,6 +238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => setStoredData(STORAGE_KEYS.BROADCASTS, broadcasts), [broadcasts]);
   useEffect(() => setStoredData(STORAGE_KEYS.AUDIT_LOGS, auditLogs), [auditLogs]);
   useEffect(() => setStoredData(STORAGE_KEYS.NOTES, shiftNotes), [shiftNotes]);
+  useEffect(() => setStoredData(STORAGE_KEYS.DAILY_LOGS, dailyLogs), [dailyLogs]);
 
   // If currentUser changes, ensure team aligns if supervisor/agent
   useEffect(() => {
@@ -300,6 +341,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => clearInterval(interval);
   }, []);
+
+  // Automated Idle Shift-End Engine & Client Heartbeat (Runs every 30 seconds)
+  useEffect(() => {
+    const idleCheckInterval = setInterval(() => {
+      const now = Date.now();
+      const idleTimeoutMs = (shiftConfig.idleTimeoutMinutes || 30) * 60 * 1000;
+
+      // 1. Client activity pulse / heartbeat for currentUser
+      if (currentUser?.email) {
+        const timeSinceUserInteraction = now - lastLocalInteractionRef.current;
+        if (timeSinceUserInteraction < 120000) { // Active in last 2 mins
+          firestoreHeartbeat(currentUser.email);
+          setUsers(prev => prev.map(u => u.email === currentUser.email ? { ...u, lastActiveTimestamp: now, lastSeen: 'Now', isOnline: true } : u));
+        }
+      }
+
+      // 2. Scan all floor agents for idle timeout
+      users.forEach(agent => {
+        // Only evaluate active shift floor agents
+        if (agent.role !== 'agent' || agent.status === 'SHIFT_ENDED' || agent.status === 'OFFLINE') {
+          return;
+        }
+
+        const isCurrentActiveUser = currentUser?.email === agent.email;
+        const lastActivity = isCurrentActiveUser ? lastLocalInteractionRef.current : (agent.lastActiveTimestamp || (agent.actualLoginTime || now));
+        const idleDuration = now - lastActivity;
+
+        if (idleDuration >= idleTimeoutMs) {
+          console.warn(`[Auto-Logout Engine] Agent ${agent.name} (${agent.email}) exceeded ${shiftConfig.idleTimeoutMinutes || 30}m idle threshold.`);
+          
+          // Force-end any active breaks
+          setBreaks(prev => prev.map(b => {
+            if (b.agentEmail === agent.email && b.isActive) {
+              const duration = Math.floor((now - b.startTime) / 1000);
+              return { ...b, isActive: false, endTime: now, duration, isAutoEnded: true };
+            }
+            return b;
+          }));
+
+          // Calculate break totals for today
+          const todayStr = new Date().toISOString().split('T')[0];
+          const agentBreaks = breaks.filter(b => b.agentEmail === agent.email && b.date === todayStr);
+          const totalBreakSec = agentBreaks.reduce((acc, b) => acc + (b.duration || 0), 0);
+          const agentWcSec = wcTracking[agent.email]?.totalWCTime || 0;
+          const agentWarns = warnings.filter(w => w.agentEmail === agent.email && w.status === 'active');
+          const agentTeam = teams.find(t => t.teamId === agent.teamId);
+
+          // Create Daily Activity Log Record
+          const newDailyLog: ActivityLogExport = {
+            logId: 'dlog_' + now + '_' + agent.id,
+            agentId: agent.id,
+            agentName: agent.name,
+            email: agent.email,
+            teamId: agent.teamId,
+            teamName: agentTeam?.teamName || agent.teamId,
+            scheduledStart: agent.scheduledShiftStart || '09:00',
+            scheduledEnd: agent.scheduledShiftEnd || '17:00',
+            actualLogin: agent.actualLoginTime ? new Date(agent.actualLoginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '09:02',
+            actualLogout: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            loginTime: agent.actualLoginTime || (now - 28800000),
+            logoutTime: now,
+            logoutReason: 'AUTO_IDLE',
+            status: 'SHIFT_ENDED',
+            totalBreakSec,
+            totalWcSec: agentWcSec,
+            warningsCount: agentWarns.length,
+            shiftExtensionMin: agent.shiftExtensionMin || 0,
+            latenessFlag: 'NONE',
+            dateString: todayStr,
+          };
+
+          // Save Daily Log
+          setDailyLogs(prev => [newDailyLog, ...prev]);
+          firestoreSaveDailyLog(newDailyLog);
+
+          // Update agent status in local state & Firestore
+          const updatedAgent: User = {
+            ...agent,
+            status: 'SHIFT_ENDED',
+            isOnline: false,
+            lastSeen: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            actualLogoutTime: now,
+            logoutReason: 'AUTO_IDLE',
+          };
+          setUsers(prev => prev.map(u => u.email === agent.email ? updatedAgent : u));
+          firestoreSaveUser(updatedAgent);
+
+          // Log Audit & SNN Headline
+          addHeadline(`🛑 AUTO-LOGOUT: ${agent.name} shift ended automatically due to ${shiftConfig.idleTimeoutMinutes || 30}m inactivity.`, 'warning', 'urgent');
+          logAudit('auto_logout_idle', 'system', { agentEmail: agent.email, idleMinutes: Math.round(idleDuration / 60000) });
+        }
+      });
+    }, 30000);
+
+    return () => clearInterval(idleCheckInterval);
+  }, [currentUser, users, breaks, wcTracking, warnings, teams, shiftConfig]);
 
   const openModal = (modalName: string, data?: any) => {
     setActiveModal(modalName);
@@ -975,6 +1112,188 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAudit('reset_all_breaks', 'system', {});
   };
 
+  const executeBatchAction = async (
+    action: BatchActionType,
+    selectedAgentEmails: string[],
+    options?: { forcedBy?: string; warningReason?: string; warningNote?: string }
+  ): Promise<{ success: boolean }> => {
+    if (selectedAgentEmails.length === 0) return { success: false };
+    const now = Date.now();
+    const forcedBy = options?.forcedBy || currentUser?.name || 'Supervisor';
+
+    // 1. Update local users state
+    setUsers(prev => prev.map(u => {
+      if (!selectedAgentEmails.includes(u.email)) return u;
+
+      if (action === 'END_BREAK') {
+        return { ...u, status: 'FLOOR', isBreakAllowed: true, isBlocked: false };
+      } else if (action === 'HOLD') {
+        return { ...u, status: 'HOLD', isBreakAllowed: false };
+      } else if (action === 'BLOCK') {
+        return { ...u, status: 'BLOCKED', isBreakAllowed: false, isBlocked: true, blockReason: options?.warningReason || 'Supervisor Batch Break Block' };
+      }
+      return u;
+    }));
+
+    // 2. If END_BREAK or BLOCK, force-end active breaks
+    if (action === 'END_BREAK' || action === 'BLOCK') {
+      setBreaks(prev => prev.map(b => {
+        if (selectedAgentEmails.includes(b.agentEmail) && b.isActive) {
+          const duration = Math.floor((now - b.startTime) / 1000);
+          return {
+            ...b,
+            isActive: false,
+            endTime: now,
+            duration,
+            isForcedEnded: true,
+            forcedEndBy: forcedBy,
+          };
+        }
+        return b;
+      }));
+    }
+
+    // 3. If WARN, issue level 1 warning to all selected agents
+    if (action === 'WARN') {
+      const newWarnings: Warning[] = selectedAgentEmails.map((email, i) => {
+        const agent = users.find(u => u.email === email);
+        return {
+          warningId: 'warn_batch_' + now + '_' + i,
+          agentEmail: email,
+          agentName: agent?.name || email,
+          teamId: agent?.teamId || activeTeamId,
+          level: 1,
+          reason: options?.warningReason || 'Supervisor Batch Warning Issued',
+          customNote: options?.warningNote || 'Batch action applied from Supervisor Deck',
+          issuedBy: currentUser?.email || 'supervisor@bcflights.com',
+          issuedByName: forcedBy,
+          issuedAt: now,
+          expiresAt: now + (3 * 24 * 60 * 60 * 1000),
+          cleanShiftsCount: 0,
+          requiredCleanShifts: 3,
+          status: 'active',
+          penalties: { maxBreakTime: 50, maxSlots: 4 },
+        };
+      });
+
+      setWarnings(prev => [...newWarnings, ...prev]);
+    }
+
+    // 4. Trigger audio and visual feedback
+    if (action === 'END_BREAK') {
+      playSound('break_end');
+      addHeadline(`☕ BATCH ACTION: Breaks ended for ${selectedAgentEmails.length} agents by ${forcedBy}`, 'break', 'urgent');
+    } else if (action === 'HOLD') {
+      playSound('warning');
+      addHeadline(`⏸ BATCH ACTION: ${selectedAgentEmails.length} agents placed on HOLD status`, 'warning', 'normal');
+    } else if (action === 'BLOCK') {
+      playSound('limit_exceeded');
+      addHeadline(`🚫 BATCH ACTION: ${selectedAgentEmails.length} agents BLOCKED from breaks by ${forcedBy}`, 'warning', 'urgent');
+    } else if (action === 'WARN') {
+      playSound('warning');
+      addHeadline(`⚠️ BATCH ACTION: Level 1 Warning issued to ${selectedAgentEmails.length} agents`, 'warning', 'urgent');
+    }
+
+    // 5. Audit log
+    logAudit('supervisor_batch_action', 'admin', {
+      action,
+      agentCount: selectedAgentEmails.length,
+      agentEmails: selectedAgentEmails,
+      options,
+    });
+
+    // 6. Firestore synchronization
+    executeFirestoreBatchAction(action, selectedAgentEmails, breaks, users, {
+      forcedBy,
+      warningReason: options?.warningReason,
+      warningNote: options?.warningNote,
+    });
+
+    return { success: true };
+  };
+
+  const exportActivityLogsCSV = (timeframe: 'today' | 'yesterday' | '7days'): string => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const filteredLogs = dailyLogs.filter(log => {
+      if (timeframe === 'today') {
+        return log.dateString === todayStr;
+      } else if (timeframe === 'yesterday') {
+        return log.dateString === yesterdayStr;
+      } else if (timeframe === '7days') {
+        return new Date(log.dateString) >= sevenDaysAgo;
+      }
+      return true;
+    });
+
+    const headers = [
+      'Agent Name',
+      'Email',
+      'Team',
+      'Scheduled Start',
+      'Actual Login',
+      'Actual Logout',
+      'Status',
+      'Total Break Used (Min)',
+      'Total WC Used (Min)',
+      'Warnings',
+      'Shift Extension (Min)',
+      'Lateness Flag',
+    ];
+
+    const rows = filteredLogs.map(log => {
+      const teamObj = teams.find(t => t.teamId === log.teamId);
+      const teamName = log.teamName || teamObj?.teamName || log.teamId;
+      const breakMin = Math.round((log.totalBreakSec || 0) / 60);
+      const wcMin = Math.round((log.totalWcSec || 0) / 60);
+
+      return [
+        `"${(log.agentName || '').replace(/"/g, '""')}"`,
+        `"${(log.email || '').replace(/"/g, '""')}"`,
+        `"${(teamName || '').replace(/"/g, '""')}"`,
+        `"${log.scheduledStart || '09:00'}"`,
+        `"${log.actualLogin || '09:00'}"`,
+        `"${log.actualLogout || '17:00'}"`,
+        `"${log.status || 'SHIFT_ENDED'}"`,
+        breakMin,
+        wcMin,
+        log.warningsCount || 0,
+        log.shiftExtensionMin || 0,
+        `"${log.latenessFlag || 'NONE'}"`,
+      ].join(',');
+    });
+
+    return [headers.join(','), ...rows].join('\n');
+  };
+
+  const downloadActivityLogsCSV = (timeframe: 'today' | 'yesterday' | '7days') => {
+    const csvData = exportActivityLogsCSV(timeframe);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `BCFBreaks_Activity_Logs_${timeframe}_${dateStr}.csv`;
+
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    playSound('click');
+    addHeadline(`📊 CSV EXPORT: Downloaded activity logs (${timeframe.toUpperCase()})`, 'info', 'normal');
+    logAudit('csv_logs_exported', 'admin', { timeframe, fileName });
+  };
+
   const exportDataJSON = () => {
     const payload = {
       exportTimestamp: new Date().toISOString(),
@@ -986,6 +1305,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       headlines,
       shiftConfig,
       auditLogs,
+      dailyLogs,
     };
     return JSON.stringify(payload, null, 2);
   };
@@ -1015,6 +1335,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         broadcasts,
         auditLogs,
         shiftNotes,
+        dailyLogs,
         isShiftActive,
         timeRemainingInShift,
         activeBreaksCount,
@@ -1066,6 +1387,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addHeadline,
         resetAllBreaks,
         exportDataJSON,
+        executeBatchAction,
+        exportActivityLogsCSV,
+        downloadActivityLogsCSV,
       }}
     >
       {children}

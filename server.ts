@@ -101,6 +101,51 @@ Give concise, encouraging, and actionable response suitable for high-performing 
     }
   });
 
+  // 4. Google GenAI Identity Router (gemini-2.5-flash)
+  app.post('/api/auth/resolve-identity', async (req, res) => {
+    try {
+      const { query, roster } = req.body;
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Query string is required' });
+      }
+
+      const ai = getAI();
+      const prompt = `You are the BCF Time Management Identity Router and Role Dispatcher.
+Match the user input "${query}" against the following roster of authorized personnel:
+${JSON.stringify(roster || [])}
+
+Rules:
+1. Handle phonetic spellings, nicknames, first-name only, full names, or email variations (e.g., "Meredith" -> "meredith@bcflights.com", "Dom" / "Dominick" -> "dominick@bcflights.com", "Adham" -> "adhambadraan@gmail.com", "Watkins" -> "watkins@bcflights.com", "Amir" -> "amir@bcflights.com", "Jay" -> "jay@bcflights.com", "Albert" -> "albert@bcflights.com").
+2. Determine the matched user's email, name, role (developer, admin, supervisor, agent), and target view routing:
+   - "developer" -> route: "god-mode"
+   - "admin" -> route: "admin"
+   - "supervisor" -> route: "supervisor"
+   - "agent" -> route: "floor"
+3. Return ONLY valid JSON with keys: "matchedEmail", "matchedName", "role", "route", "confidence" (number 0 to 1), "reasoning".`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const text = response.text || '{}';
+      let parsed = {};
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = { raw: text };
+      }
+
+      return res.json(parsed);
+    } catch (err: any) {
+      console.error('GenAI Identity Router Error:', err);
+      return res.status(500).json({ error: err.message || 'Identity resolution failed' });
+    }
+  });
+
   // 4. Gemini Live API WebSocket Server (/live) using gemini-3.1-flash-live-preview
   const wss = new WebSocketServer({ server, path: '/live' });
 

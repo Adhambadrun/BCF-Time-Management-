@@ -1,6 +1,6 @@
 {
-  "name": "BCFBreaks",
-  "description": "Premium multi-team sales-floor break punch-in/punch-out web app featuring Neo-Apple Liquid Glass material system, military-precision shift tracking, and comprehensive role-based access control.",
+  "name": "BCF Time Management",
+  "description": "Official BCF Time Management and sales-floor shift break tracking platform.",
   "requestFramePermissions": [
     "microphone"
   ],

@@ -7,6 +7,8 @@ import {
   onSnapshot,
   getDocs,
   deleteDoc,
+  writeBatch,
+  serverTimestamp,
 } from './firebase';
 import {
   User,
@@ -20,6 +22,8 @@ import {
   Broadcast,
   AuditLogEntry,
   ShiftNote,
+  ActivityLogExport,
+  BatchActionType,
 } from '../types';
 
 // Helper to sanitize Firestore document ID
@@ -165,6 +169,26 @@ export function subscribeToFirestoreConfig(callback: (config: ShiftConfig) => vo
   }
 }
 
+export function subscribeToFirestoreDailyLogs(callback: (logs: ActivityLogExport[]) => void) {
+  try {
+    const colRef = collection(db, 'daily_logs');
+    return onSnapshot(colRef, (snapshot) => {
+      const logs: ActivityLogExport[] = [];
+      snapshot.forEach((docSnap) => {
+        logs.push(docSnap.data() as ActivityLogExport);
+      });
+      if (logs.length > 0) {
+        callback(logs);
+      }
+    }, (err) => {
+      console.warn('Firestore daily_logs subscription warning:', err);
+    });
+  } catch (e) {
+    console.warn('Firestore daily_logs subscription unavailable:', e);
+    return () => {};
+  }
+}
+
 // Writers
 export async function firestoreSaveBreak(breakRecord: BreakRecord) {
   try {
@@ -246,3 +270,119 @@ export async function firestoreSaveUser(user: User) {
     console.error('Failed to persist user to Firestore:', err);
   }
 }
+
+export async function firestoreHeartbeat(email: string) {
+  try {
+    const docRef = doc(db, 'users', sanitizeDocId(email));
+    await updateDoc(docRef, {
+      lastActiveTimestamp: Date.now(),
+      isOnline: true,
+      lastSeen: 'Now',
+    });
+  } catch (err) {
+    // Non-blocking pulse
+  }
+}
+
+export async function firestoreSaveDailyLog(log: ActivityLogExport) {
+  try {
+    const docRef = doc(db, 'daily_logs', sanitizeDocId(log.logId));
+    await setDoc(docRef, log, { merge: true });
+  } catch (err) {
+    console.error('Failed to save daily activity log:', err);
+  }
+}
+
+// BATCH OPERATION HANDLER
+export async function executeFirestoreBatchAction(
+  action: BatchActionType,
+  selectedAgentEmails: string[],
+  activeBreaks: BreakRecord[],
+  users: User[],
+  options?: {
+    forcedBy?: string;
+    warningNote?: string;
+    warningReason?: string;
+  }
+) {
+  try {
+    const batch = writeBatch(db);
+    const now = Date.now();
+
+    selectedAgentEmails.forEach((email) => {
+      const userRef = doc(db, 'users', sanitizeDocId(email));
+      const agentActiveBreak = activeBreaks.find(b => b.agentEmail === email && b.isActive);
+
+      if (action === 'END_BREAK') {
+        batch.update(userRef, {
+          status: 'FLOOR',
+          isBreakAllowed: true,
+          lastSeen: 'Now',
+        });
+        if (agentActiveBreak) {
+          const breakRef = doc(db, 'breaks', sanitizeDocId(agentActiveBreak.breakId));
+          batch.update(breakRef, {
+            isActive: false,
+            endTime: now,
+            duration: Math.floor((now - agentActiveBreak.startTime) / 1000),
+            isForcedEnded: true,
+            forcedEndBy: options?.forcedBy || 'SUPERVISOR_BATCH',
+          });
+        }
+      } else if (action === 'HOLD') {
+        batch.update(userRef, {
+          status: 'HOLD',
+          isBreakAllowed: false,
+          lastSeen: 'Now',
+        });
+      } else if (action === 'BLOCK') {
+        batch.update(userRef, {
+          status: 'BLOCKED',
+          isBreakAllowed: false,
+          isBlocked: true,
+          blockReason: options?.warningReason || 'Supervisor Batch Break Block',
+          lastSeen: 'Now',
+        });
+        if (agentActiveBreak) {
+          const breakRef = doc(db, 'breaks', sanitizeDocId(agentActiveBreak.breakId));
+          batch.update(breakRef, {
+            isActive: false,
+            endTime: now,
+            duration: Math.floor((now - agentActiveBreak.startTime) / 1000),
+            isForcedEnded: true,
+            forcedEndBy: options?.forcedBy || 'SUPERVISOR_BATCH_BLOCK',
+          });
+        }
+      } else if (action === 'WARN') {
+        const agent = users.find(u => u.email === email);
+        const warnId = 'warn_batch_' + now + '_' + sanitizeDocId(email);
+        const warnRef = doc(db, 'warnings', warnId);
+        const newWarn: Warning = {
+          warningId: warnId,
+          agentEmail: email,
+          agentName: agent?.name || email,
+          teamId: agent?.teamId || 'team_strikers',
+          level: 1,
+          reason: options?.warningReason || 'Supervisor Batch Warning Issued',
+          customNote: options?.warningNote || 'Batch action applied from Supervisor Deck',
+          issuedBy: options?.forcedBy || 'SUPERVISOR',
+          issuedByName: 'Supervisor',
+          issuedAt: now,
+          expiresAt: now + (3 * 24 * 60 * 60 * 1000), // 3 shifts
+          cleanShiftsCount: 0,
+          requiredCleanShifts: 3,
+          status: 'active',
+          penalties: { maxBreakTime: 50, maxSlots: 4 },
+        };
+        batch.set(warnRef, newWarn);
+      }
+    });
+
+    await batch.commit();
+    return { success: true };
+  } catch (err) {
+    console.error('Error committing batch action:', err);
+    return { success: false, error: err };
+  }
+}
+

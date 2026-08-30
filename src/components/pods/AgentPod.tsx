@@ -3,7 +3,7 @@ import { User, BreakRecord } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { SNAP, GLIDE, COIN_FLIP_TRANSITION } from '../../styles/motion-presets';
-import { Coffee, UtensilsCrossed, Phone, Gift, ShieldAlert, XCircle, AlertTriangle, Eye, Camera, UserX, CheckCircle, Flame } from 'lucide-react';
+import { Coffee, UtensilsCrossed, Phone, Gift, ShieldAlert, XCircle, AlertTriangle, Eye, Camera, UserX, CheckCircle, Flame, CheckSquare, Square } from 'lucide-react';
 import { playSound } from '../../lib/sound';
 
 // Ultra-fast, high-tactile spring physics for instantaneous pod option popups
@@ -27,6 +27,9 @@ interface AgentPodProps {
   totalBreakMinutes: number;
   isOwnPod: boolean;
   canManage: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (email: string) => void;
+  selectionMode?: boolean;
 }
 
 export const AgentPod: React.FC<AgentPodProps> = ({
@@ -36,6 +39,9 @@ export const AgentPod: React.FC<AgentPodProps> = ({
   totalBreakMinutes,
   isOwnPod,
   canManage,
+  isSelected = false,
+  onToggleSelect,
+  selectionMode = false,
 }) => {
   const {
     currentUser,
@@ -557,20 +563,34 @@ export const AgentPod: React.FC<AgentPodProps> = ({
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
                 
-                {/* Blocked Overlay Shield if Blocked */}
-                {agent.isBlocked ? (
+                {/* Blocked / Hold / Shift Ended / Ready Status Overlay */}
+                {agent.isBlocked || agent.status === 'BLOCKED' ? (
                   <div className="absolute inset-0 bg-crimson/30 flex flex-col items-center justify-center p-2 backdrop-blur-[1px] pointer-events-none">
                     <ShieldAlert className="w-6 h-6 text-crimson animate-bounce drop-shadow-[0_0_8px_rgba(255,0,60,0.8)]" />
                     <span className="text-[8px] font-orbitron font-bold text-white bg-black/80 px-1.5 py-0.5 rounded mt-1 border border-crimson/50">
                       BLOCKED
                     </span>
                   </div>
+                ) : agent.status === 'HOLD' ? (
+                  <div className="absolute bottom-1 right-1/2 translate-x-1/2 flex items-center gap-1 bg-black/90 px-2 py-0.5 rounded-full border border-amber-500/50 shadow-[0_0_8px_rgba(255,136,0,0.4)]">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="text-[9px] font-orbitron font-bold text-amber-400">
+                      HOLD
+                    </span>
+                  </div>
+                ) : agent.status === 'SHIFT_ENDED' || agent.status === 'OFFLINE' ? (
+                  <div className="absolute bottom-1 right-1/2 translate-x-1/2 flex items-center gap-1 bg-black/90 px-2 py-0.5 rounded-full border border-zinc-700">
+                    <span className="w-2 h-2 rounded-full bg-zinc-500" />
+                    <span className="text-[8.5px] font-orbitron text-zinc-400">
+                      SHIFT END
+                    </span>
+                  </div>
                 ) : (
                   /* Online / Ready Status Dot */
-                  <div className="absolute bottom-1 right-1/2 translate-x-1/2 flex items-center gap-1 bg-black/80 px-2 py-0.5 rounded-full border border-white/10">
+                  <div className="absolute bottom-1 right-1/2 translate-x-1/2 flex items-center gap-1 bg-black/80 px-2 py-0.5 rounded-full border border-emerald-500/30">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[9px] font-orbitron text-zinc-300">
-                      READY
+                    <span className="text-[9px] font-orbitron font-semibold text-emerald-400">
+                      FLOOR
                     </span>
                   </div>
                 )}
@@ -601,9 +621,35 @@ export const AgentPod: React.FC<AgentPodProps> = ({
           </div>
         )}
 
+        {/* Multi-Select Checkbox for Supervisors / Managers */}
+        {canManage && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.(agent.email);
+              playSound('click');
+            }}
+            className={`absolute -top-1 -left-1 z-30 w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+              isSelected
+                ? 'bg-yellow-400 text-black shadow-[0_0_12px_#FFD700] ring-2 ring-yellow-300'
+                : selectionMode
+                ? 'bg-black/80 text-zinc-300 border-2 border-yellow-400/70 hover:bg-yellow-400/20'
+                : 'bg-black/70 hover:bg-black/90 text-zinc-400 border border-white/20 hover:border-yellow-400/60 opacity-0 group-hover:opacity-100 focus:opacity-100'
+            }`}
+            title={isSelected ? 'Deselect Agent' : 'Select Agent for Batch Action'}
+          >
+            {isSelected ? (
+              <CheckSquare className="w-3.5 h-3.5 text-black" />
+            ) : (
+              <Square className="w-3 h-3 text-zinc-300" />
+            )}
+          </button>
+        )}
+
         {/* Layer 7: Orbiting Badges */}
-        {/* YOU Badge */}
-        {isSelf && (
+        {/* YOU Badge (if not multi-selecting) */}
+        {isSelf && !canManage && (
           <div className="absolute -top-1 -left-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black font-orbitron font-extrabold text-[9px] px-2 py-0.5 rounded-full shadow-[0_0_10px_rgba(255,204,0,0.6)] z-20 animate-bounce">
             YOU
           </div>

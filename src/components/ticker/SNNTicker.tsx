@@ -3,9 +3,38 @@ import { useApp } from '../../context/AppContext';
 import { GlassPanel } from '../shared/GlassPanel';
 import { Zap, AlertTriangle, Gift, Crown, AlertOctagon, Smile, Sun, Cake, ChevronRight } from 'lucide-react';
 import { playSound } from '../../lib/sound';
+import { motion } from 'motion/react';
 
 export const SNNTicker: React.FC = () => {
-  const { headlines, setIsNewsPanelOpen } = useApp();
+  const { headlines, setIsNewsPanelOpen, currentUser } = useApp();
+
+  // Role-Based Privacy Engine
+  // AGENT: strictly filter events originating ONLY from their assigned teamId (cross-team events redacted)
+  // SUPERVISOR: floor-wide updates across all teams
+  // ADMIN: floor-wide + administrative logs
+  // DEVELOPER / GOD MODE: unfiltered GOD access to all streams & alerts
+  const filteredHeadlines = headlines.filter(hl => {
+    if (!currentUser) return true;
+    if (currentUser.role === 'developer' || currentUser.role === 'admin') {
+      return true;
+    }
+    if (currentUser.role === 'supervisor') {
+      return !hl.isGodMessage;
+    }
+    if (currentUser.role === 'agent') {
+      // General floor announcements or matching user team only
+      if (hl.visibility === 'admin_only' || hl.visibility === 'supervisor_only') {
+        return false;
+      }
+      if (hl.teamId && hl.teamId !== currentUser.teamId) {
+        return false;
+      }
+      return true;
+    }
+    return true;
+  });
+
+  const displayHeadlines = filteredHeadlines.length > 0 ? filteredHeadlines : headlines;
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -41,10 +70,20 @@ export const SNNTicker: React.FC = () => {
           <span>SNN LIVE</span>
         </div>
 
-        {/* CENTER: Infinite Marquee Stream */}
-        <div className="flex-1 overflow-hidden relative mx-4">
-          <div className="animate-marquee whitespace-nowrap flex items-center gap-8 text-xs font-inter text-zinc-200">
-            {headlines.map((hl, i) => (
+        {/* CENTER: Infinite Marquee Stream with 45s pace and hover pause */}
+        <div className="flex-1 overflow-hidden relative mx-4 group cursor-pointer">
+          <motion.div
+            className="whitespace-nowrap flex items-center gap-8 text-xs font-inter text-zinc-200"
+            animate={{ x: ['0%', '-50%'] }}
+            transition={{
+              repeat: Infinity,
+              ease: 'linear',
+              duration: 45,
+            }}
+            whileHover={{ animationPlayState: 'paused' }}
+            style={{ display: 'inline-flex' }}
+          >
+            {displayHeadlines.map((hl, i) => (
               <span key={hl.headlineId + '_' + i} className="inline-flex items-center gap-1.5">
                 {getCategoryIcon(hl.category)}
                 <span
@@ -61,8 +100,8 @@ export const SNNTicker: React.FC = () => {
                 <span className="text-yellow-400 font-bold mx-2">|||</span>
               </span>
             ))}
-            {/* Duplicate for smooth continuous marquee loop */}
-            {headlines.map((hl, i) => (
+            {/* Duplicate set for continuous seamless loop */}
+            {displayHeadlines.map((hl, i) => (
               <span key={'dup_' + hl.headlineId + '_' + i} className="inline-flex items-center gap-1.5">
                 {getCategoryIcon(hl.category)}
                 <span
@@ -79,7 +118,7 @@ export const SNNTicker: React.FC = () => {
                 <span className="text-yellow-400 font-bold mx-2">|||</span>
               </span>
             ))}
-          </div>
+          </motion.div>
         </div>
 
         {/* RIGHT: Expand News Panel Button */}
@@ -88,7 +127,7 @@ export const SNNTicker: React.FC = () => {
             setIsNewsPanelOpen(true);
             playSound('click');
           }}
-          className="shrink-0 flex items-center gap-1 text-[11px] font-orbitron font-semibold text-yellow-400 hover:text-yellow-300 px-2.5 py-1 rounded-lg hover:bg-yellow-400/10 border border-yellow-400/30 transition-all z-10"
+          className="shrink-0 flex items-center gap-1 text-[11px] font-orbitron font-semibold text-yellow-400 hover:text-yellow-300 px-2.5 py-1 rounded-lg hover:bg-yellow-400/10 border border-yellow-400/30 transition-all z-10 cursor-pointer"
         >
           <span>FEED</span>
           <ChevronRight className="w-3.5 h-3.5" />

@@ -1,7 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { GlassPanel } from '../shared/GlassPanel';
-import { Users, Clock, AlertTriangle, Award, HeartHandshake, FileText, CheckCircle2, Shield } from 'lucide-react';
+import { Users, Clock, AlertTriangle, Award, HeartHandshake, FileText, CheckCircle2, Shield, Download } from 'lucide-react';
+import { playSound } from '../../lib/sound';
+import { useBatchActions, BatchActionType } from '../../hooks/useBatchActions';
+import { BatchActionToolbar } from './BatchActionToolbar';
+import { AgentPod } from '../pods/AgentPod';
+import { AnimatePresence, motion } from 'motion/react';
+import { GLIDE } from '../../styles/motion-presets';
 
 export const SupervisorDashboard: React.FC = () => {
   const {
@@ -13,13 +19,50 @@ export const SupervisorDashboard: React.FC = () => {
     warnings,
     shiftNotes,
     openModal,
+    downloadActivityLogsCSV,
+    executeBatchAction: executeContextBatchAction,
   } = useApp();
+
+  const [isExporting, setIsExporting] = useState(false);
 
   const team = teams.find(t => t.teamId === activeTeamId) || teams[0];
   const teamAgents = users.filter(u => u.teamId === activeTeamId && u.role === 'agent');
   const teamBreaks = breaks.filter(b => b.teamId === activeTeamId);
   const teamWarnings = warnings.filter(w => w.teamId === activeTeamId);
   const teamNotes = shiftNotes.filter(n => n.teamId === activeTeamId);
+
+  // Batch action hook integration
+  const {
+    selectedAgentIds,
+    toggleSelectAgent,
+    toggleSelectAll,
+    clearSelection,
+    executeBatchAction,
+    isAllSelected,
+    hasSelection,
+  } = useBatchActions(
+    teamAgents.map(a => a.email),
+    (action: BatchActionType, ids: string[]) => {
+      const mappedAction = action === 'WARNING' ? 'WARN' : action;
+      executeContextBatchAction(mappedAction, ids, {
+        forcedBy: currentUser?.name || 'Supervisor',
+        warningReason: action === 'WARNING' ? 'Supervisor Batch Warning' : undefined,
+        warningNote: action === 'WARNING' ? 'Issued via Supervisor Command Bar' : undefined,
+      });
+    }
+  );
+
+  const handleExport = () => {
+    setIsExporting(true);
+    playSound('bonus');
+    try {
+      downloadActivityLogsCSV('today');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-8 space-y-8">
@@ -39,13 +82,24 @@ export const SupervisorDashboard: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => openModal('handover')}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-400/20 hover:bg-yellow-400/30 border border-yellow-400/50 text-yellow-300 text-xs font-orbitron font-bold shadow-lg transition-all"
-        >
-          <FileText className="w-4 h-4 text-yellow-400" />
-          Shift Handover Notes
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-orbitron font-bold shadow-lg transition-all cursor-pointer"
+            title="Export Today's Activity Logs as CSV"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            Export Shift CSV
+          </button>
+          <button
+            onClick={() => openModal('handover')}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-400/20 hover:bg-yellow-400/30 border border-yellow-400/50 text-yellow-300 text-xs font-orbitron font-bold shadow-lg transition-all cursor-pointer"
+          >
+            <FileText className="w-4 h-4 text-yellow-400" />
+            Shift Handover Notes
+          </button>
+        </div>
       </div>
 
       {/* Wellness & Attendance Cards */}
@@ -80,6 +134,76 @@ export const SupervisorDashboard: React.FC = () => {
         </GlassPanel>
       </div>
 
+      {/* Batch Action Toolbar Mounting */}
+      <AnimatePresence>
+        {hasSelection && (
+          <BatchActionToolbar
+            selectedCount={selectedAgentIds.length}
+            totalCount={teamAgents.length}
+            isAllSelected={isAllSelected}
+            onToggleSelectAll={toggleSelectAll}
+            onExecuteAction={executeBatchAction}
+            onClearSelection={clearSelection}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Team Floor Agents Grid */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-orbitron font-bold text-base text-zinc-100 flex items-center gap-2">
+            <Users className="w-5 h-5 text-cyan" />
+            <span>{team.teamName} Live Floor Grid</span>
+            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-zinc-400">
+              {teamAgents.length} Agents
+            </span>
+          </h3>
+
+          <button
+            onClick={toggleSelectAll}
+            className="text-xs font-orbitron text-yellow-400 hover:text-yellow-300 transition-colors cursor-pointer"
+          >
+            {isAllSelected ? 'Deselect All' : 'Select All Team'}
+          </button>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={GLIDE}
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-3 place-items-center items-start w-full"
+        >
+          {teamAgents.map((agent) => {
+            const activeBreak = breaks.find(
+              b => b.agentEmail === agent.email && b.isActive
+            );
+            const todayBreaks = breaks.filter(
+              b => b.agentEmail === agent.email && b.date === new Date().toISOString().split('T')[0]
+            );
+            const totalBreakMinutes = todayBreaks.reduce(
+              (acc, b) => acc + Math.round(b.duration / 60),
+              0
+            );
+            const isSelected = selectedAgentIds.includes(agent.email);
+
+            return (
+              <AgentPod
+                key={agent.id}
+                agent={agent}
+                activeBreak={activeBreak}
+                usedSlotsCount={todayBreaks.length}
+                totalBreakMinutes={totalBreakMinutes}
+                isOwnPod={currentUser?.email === agent.email}
+                canManage={true}
+                isSelected={isSelected}
+                onToggleSelect={toggleSelectAgent}
+                selectionMode={hasSelection}
+              />
+            );
+          })}
+        </motion.div>
+      </div>
+
       {/* Shift Handover Notes Stream */}
       <GlassPanel material="thick" className="p-6">
         <h3 className="font-orbitron font-bold text-base text-yellow-400 mb-3 flex items-center gap-2">
@@ -107,3 +231,4 @@ export const SupervisorDashboard: React.FC = () => {
     </div>
   );
 };
+

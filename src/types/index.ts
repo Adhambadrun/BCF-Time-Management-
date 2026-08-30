@@ -2,6 +2,10 @@ export type UserRole = 'agent' | 'supervisor' | 'admin' | 'developer';
 
 export type BreakType = 'regular' | 'wc' | 'meal' | 'personal' | 'bonus';
 
+export type AgentStatus = 'FLOOR' | 'BREAK' | 'WC' | 'HOLD' | 'BLOCKED' | 'SHIFT_ENDED' | 'OFFLINE';
+
+export type BatchActionType = 'END_BREAK' | 'HOLD' | 'BLOCK' | 'WARN';
+
 export interface User {
   id: string;
   name: string;
@@ -23,9 +27,18 @@ export interface User {
   hireDate?: string; // YYYY-MM-DD
   yearsOfService?: number;
   isOnline: boolean;
+  status?: AgentStatus;
+  isBreakAllowed?: boolean;
   isBlocked?: boolean;
   blockReason?: string;
   lastSeen: string;
+  lastActiveTimestamp?: number; // Heartbeat ms
+  scheduledShiftStart?: string; // e.g. "09:00" or "22:00"
+  scheduledShiftEnd?: string; // e.g. "17:00" or "06:00"
+  actualLoginTime?: number;
+  actualLogoutTime?: number;
+  logoutReason?: 'MANUAL' | 'AUTO_IDLE' | 'ADMIN_FORCE';
+  shiftExtensionMin?: number;
   totalBreaksTaken: number;
   totalBreakTime: number; // in minutes
   totalWarnings: number;
@@ -137,6 +150,8 @@ export interface ShiftConfig {
   maxWCTime: number; // 20 mins
   shiftStartHour: number; // 22 (10 PM)
   shiftEndHour: number; // 6 (6 AM)
+  idleTimeoutMinutes?: number; // Inactivity threshold (default 30 min)
+  shiftEndGraceMinutes?: number; // Threshold past shift end (default 15 min)
   restrictedFirstHour: boolean; // 10-11 PM
   restrictedLastHour: boolean; // 5-6 AM
   restrictedHoursApplyToWC: boolean; // false
@@ -236,3 +251,28 @@ export interface Competition {
   isActive: boolean;
   winnerTeamId?: string;
 }
+
+// /daily_logs/{logId}
+export interface ActivityLogExport {
+  logId: string;
+  agentId: string;
+  agentName: string;
+  email?: string;
+  teamId: string;
+  teamName?: string;
+  scheduledStart?: string;
+  scheduledEnd?: string;
+  actualLogin?: string;
+  actualLogout?: string;
+  loginTime: any;
+  logoutTime?: any;
+  logoutReason: 'MANUAL' | 'AUTO_IDLE' | 'ADMIN_FORCE';
+  status: AgentStatus | string;
+  totalBreakSec: number;
+  totalWcSec: number;
+  warningsCount: number;
+  shiftExtensionMin: number;
+  latenessFlag: string; // e.g. "NONE", "LATE_15", etc.
+  dateString: string; // YYYY-MM-DD
+}
+
