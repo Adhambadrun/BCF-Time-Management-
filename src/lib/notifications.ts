@@ -51,8 +51,8 @@ export function sendBreakExceededNotification(payload: BreakNotificationPayload)
     const title = `🚨 OVERDUE BREAK: ${payload.agentName}`;
     const options: NotificationOptions = {
       body: `${payload.agentName} has been on ${payload.breakType.toUpperCase()} for ${payload.durationMinutes}m (Limit: ${payload.allowedMinutes}m). Immediate supervisor attention required.`,
-      icon: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80',
-      badge: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=64&auto=format&fit=crop&q=80',
+      icon: '/logo.png',
+      badge: '/logo.png',
       tag: `break-overrun-${payload.agentEmail}`,
       requireInteraction: true,
       silent: false,
@@ -79,7 +79,7 @@ export function sendUrgentFloorNotification(title: string, message: string): boo
   try {
     const notification = new Notification(title, {
       body: message,
-      icon: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=128&auto=format&fit=crop&q=80',
+      icon: '/logo.png',
       tag: `floor-alert-${Date.now()}`,
       requireInteraction: false,
     });

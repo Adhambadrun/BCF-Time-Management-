@@ -4,7 +4,7 @@ export type BreakType = 'regular' | 'wc' | 'meal' | 'personal' | 'bonus';
 
 export type AgentStatus = 'FLOOR' | 'BREAK' | 'WC' | 'HOLD' | 'BLOCKED' | 'SHIFT_ENDED' | 'OFFLINE';
 
-export type BatchActionType = 'END_BREAK' | 'HOLD' | 'BLOCK' | 'WARN';
+export type BatchActionType = 'END_BREAK' | 'HOLD' | 'BLOCK' | 'WARN' | 'RESET_FLOOR';
 
 export interface User {
   id: string;
@@ -51,6 +51,9 @@ export interface User {
     progress: number;
     completed: boolean;
   };
+  shiftNote?: string;
+  shiftNoteUpdatedAt?: number;
+  shiftNoteAuthor?: string;
 }
 
 export interface Team {
@@ -63,6 +66,7 @@ export interface Team {
   agentCount: number;
   competitionScore: number;
   isActive: boolean;
+  isBreakBlocked?: boolean;
   settings?: {
     customBreakCapacity?: number;
     customMaxTotalBreakTime?: number;
@@ -155,6 +159,7 @@ export interface ShiftConfig {
   restrictedFirstHour: boolean; // 10-11 PM
   restrictedLastHour: boolean; // 5-6 AM
   restrictedHoursApplyToWC: boolean; // false
+  alertToneTheme?: 'cyber' | 'radar' | 'siren'; // 3 distinct floor alert audio themes
   masterBreakBlock: boolean;
   blockedAgents: string[];
   maintenanceMode: boolean;

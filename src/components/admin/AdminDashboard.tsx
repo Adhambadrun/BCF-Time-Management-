@@ -19,6 +19,7 @@ export const AdminDashboard: React.FC = () => {
     shiftConfig,
     currentUser,
     downloadActivityLogsCSV,
+    downloadTeamBreakLogsCSV,
     dailyLogs,
   } = useApp();
 
@@ -57,17 +58,30 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Download Export (7 Days Team Break Logs) */}
+          <button
+            id="admin-download-export-btn"
+            onClick={() => {
+              downloadTeamBreakLogsCSV(activeTeamId, 7);
+            }}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan/20 hover:bg-cyan/30 border border-cyan/40 text-cyan text-xs font-orbitron font-semibold shadow-lg transition-all cursor-pointer hover:scale-105 active:scale-95"
+            title={`Download last 7 days of break logs for ${team.teamName}`}
+          >
+            <Download className="w-4 h-4 text-cyan" />
+            <span>Download Export</span>
+          </button>
+
           {/* CSV Exporter Button */}
           <button
             onClick={() => {
               setIsCsvModalOpen(true);
               playSound('click');
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-orbitron font-semibold shadow-lg transition-all cursor-pointer hover:scale-105 active:scale-95"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-orbitron font-semibold shadow-lg transition-all cursor-pointer hover:scale-105 active:scale-95"
             title="Open CSV Report Exporter & Scheduler"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>Export CSV</span>
+            <span>Custom Export</span>
           </button>
 
           <button

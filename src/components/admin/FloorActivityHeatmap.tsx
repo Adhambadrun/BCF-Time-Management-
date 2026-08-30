@@ -185,46 +185,49 @@ export const FloorActivityHeatmap: React.FC<FloorActivityHeatmapProps> = ({
     // Color Scales based on selected metric
     let colorScale: (val: number) => string;
     if (metricType === 'volume') {
-      const maxVal = d3.max(matrixData, (d) => d.breakCount) || 10;
-      colorScale = d3
+      const maxVal = d3.max(matrixData, (d: HeatmapCell) => d.breakCount) ?? 10;
+      const linear = d3
         .scaleLinear<string>()
         .domain([0, maxVal * 0.3, maxVal * 0.7, maxVal])
         .range(['#18181b', '#1e3a8a', '#eab308', '#ef4444']);
+      colorScale = (val: number) => linear(val);
     } else if (metricType === 'capacity') {
-      colorScale = d3
+      const linear = d3
         .scaleLinear<string>()
         .domain([0, 50, 90, 130])
         .range(['#18181b', '#065f46', '#eab308', '#dc2626']);
+      colorScale = (val: number) => linear(val);
     } else {
-      const maxOver = d3.max(matrixData, (d) => d.overtimeCount) || 4;
-      colorScale = d3
+      const maxOver = d3.max(matrixData, (d: HeatmapCell) => d.overtimeCount) ?? 4;
+      const linear = d3
         .scaleLinear<string>()
         .domain([0, 1, maxOver])
         .range(['#18181b', '#f97316', '#ef4444']);
+      colorScale = (val: number) => linear(val);
     }
 
     // Grid Background Pattern
     g.append('g')
-      .selectAll('line.h-grid')
+      .selectAll<SVGLineElement, string>('line.h-grid')
       .data(yLabels)
       .enter()
       .append('line')
       .attr('class', 'h-grid')
       .attr('x1', 0)
       .attr('x2', innerWidth)
-      .attr('y1', (d) => (yScale(d) || 0) + yScale.bandwidth() / 2)
-      .attr('y2', (d) => (yScale(d) || 0) + yScale.bandwidth() / 2)
+      .attr('y1', (d: string) => (yScale(d) || 0) + yScale.bandwidth() / 2)
+      .attr('y2', (d: string) => (yScale(d) || 0) + yScale.bandwidth() / 2)
       .attr('stroke', 'rgba(255,255,255,0.04)')
       .attr('stroke-dasharray', '2,2');
 
     // Render Heatmap Cells
     const cellGroups = g
-      .selectAll('g.cell')
+      .selectAll<SVGGElement, HeatmapCell>('g.cell')
       .data(matrixData)
       .enter()
       .append('g')
       .attr('class', 'cell')
-      .attr('transform', (d) => `translate(${xScale(d.xLabel) || 0}, ${yScale(d.yLabel) || 0})`);
+      .attr('transform', (d: HeatmapCell) => `translate(${xScale(d.xLabel) || 0}, ${yScale(d.yLabel) || 0})`);
 
     cellGroups
       .append('rect')
@@ -232,7 +235,7 @@ export const FloorActivityHeatmap: React.FC<FloorActivityHeatmapProps> = ({
       .attr('height', yScale.bandwidth())
       .attr('rx', 6)
       .attr('ry', 6)
-      .attr('fill', (d) => {
+      .attr('fill', (d: HeatmapCell) => {
         const val =
           metricType === 'volume'
             ? d.breakCount
@@ -245,7 +248,7 @@ export const FloorActivityHeatmap: React.FC<FloorActivityHeatmapProps> = ({
       .attr('stroke-width', 1)
       .style('cursor', 'pointer')
       .style('transition', 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)')
-      .on('mouseenter', function (event, d) {
+      .on('mouseenter', function (event: any, d: HeatmapCell) {
         d3.select(this)
           .attr('stroke', '#FFD700')
           .attr('stroke-width', 2.5)
@@ -282,12 +285,12 @@ export const FloorActivityHeatmap: React.FC<FloorActivityHeatmapProps> = ({
         .attr('x', xScale.bandwidth() / 2)
         .attr('y', yScale.bandwidth() / 2 + 4)
         .attr('text-anchor', 'middle')
-        .attr('fill', (d) => (d.status === 'low' ? 'rgba(255,255,255,0.4)' : '#ffffff'))
+        .attr('fill', (d: HeatmapCell) => (d.status === 'low' ? 'rgba(255,255,255,0.4)' : '#ffffff'))
         .attr('font-size', '11px')
         .attr('font-weight', '700')
         .attr('font-family', 'Orbitron, monospace')
         .style('pointer-events', 'none')
-        .text((d) => {
+        .text((d: HeatmapCell) => {
           if (metricType === 'volume') return d.breakCount > 0 ? d.breakCount : '·';
           if (metricType === 'capacity') return `${d.capacityPercentage}%`;
           return d.overtimeCount > 0 ? `!${d.overtimeCount}` : '·';

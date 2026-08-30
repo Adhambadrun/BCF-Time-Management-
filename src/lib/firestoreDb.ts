@@ -342,7 +342,25 @@ export async function executeFirestoreBatchAction(
       const userRef = doc(db, 'users', sanitizeDocId(email));
       const agentActiveBreak = activeBreaks.find(b => b.agentEmail === email && b.isActive);
 
-      if (action === 'END_BREAK') {
+      if (action === 'RESET_FLOOR') {
+        batch.update(userRef, {
+          status: 'FLOOR',
+          isBreakAllowed: true,
+          isBlocked: false,
+          blockReason: null,
+          lastSeen: 'Now',
+        });
+        if (agentActiveBreak) {
+          const breakRef = doc(db, 'breaks', sanitizeDocId(agentActiveBreak.breakId));
+          batch.update(breakRef, {
+            isActive: false,
+            endTime: now,
+            duration: Math.floor((now - agentActiveBreak.startTime) / 1000),
+            isForcedEnded: true,
+            forcedEndBy: options?.forcedBy || 'END_OF_SHIFT_CLEANUP',
+          });
+        }
+      } else if (action === 'END_BREAK') {
         batch.update(userRef, {
           status: 'FLOOR',
           isBreakAllowed: true,
@@ -414,4 +432,61 @@ export async function executeFirestoreBatchAction(
     return { success: false, error: err };
   }
 }
+
+// Team-Wide Break Blocking & Unblocking Firestore Batch Engine
+export async function executeFirestoreTeamBreakLock(
+  teamId: string,
+  block: boolean,
+  teamAgents: User[],
+  activeBreaks: BreakRecord[],
+  options?: { forcedBy?: string }
+): Promise<{ success: boolean; error?: any }> {
+  try {
+    if (!db) return { success: false, error: 'Database not initialized' };
+    const batch = writeBatch(db);
+    const now = Date.now();
+    const forcedBy = options?.forcedBy || 'SUPERVISOR';
+
+    teamAgents.forEach((agent) => {
+      const userRef = doc(db, 'users', sanitizeDocId(agent.email));
+      if (block) {
+        batch.update(userRef, {
+          isBreakAllowed: false,
+          isBlocked: true,
+          status: 'BLOCKED',
+          blockReason: 'Team-Wide Break Lockdown',
+          lastSeen: 'Now',
+        });
+
+        // Force-end active breaks for this agent
+        const agentActiveBreak = activeBreaks.find(b => b.agentEmail === agent.email && b.isActive);
+        if (agentActiveBreak) {
+          const breakRef = doc(db, 'breaks', sanitizeDocId(agentActiveBreak.breakId));
+          batch.update(breakRef, {
+            isActive: false,
+            endTime: now,
+            duration: Math.floor((now - agentActiveBreak.startTime) / 1000),
+            isForcedEnded: true,
+            forcedEndBy: forcedBy,
+          });
+        }
+      } else {
+        batch.update(userRef, {
+          isBreakAllowed: true,
+          isBlocked: false,
+          status: 'FLOOR',
+          blockReason: null,
+          lastSeen: 'Now',
+        });
+      }
+    });
+
+    await batch.commit();
+    return { success: true };
+  } catch (err) {
+    console.error('Error committing team break lock batch:', err);
+    return { success: false, error: err };
+  }
+}
+
 

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, Team, BreakRecord, WCTracking, Warning, SNNHeadline, ShiftConfig, ChatMessage, Broadcast, AuditLogEntry, ShiftNote, BreakType, UserRole, ActivityLogExport, BatchActionType } from '../types';
-import { getStoredData, setStoredData, STORAGE_KEYS, INITIAL_USERS, INITIAL_TEAMS, INITIAL_BREAKS, INITIAL_WC_TRACKING, INITIAL_WARNINGS, INITIAL_HEADLINES, INITIAL_CONFIG, INITIAL_DAILY_LOGS } from '../lib/storage';
+import { getStoredData, setStoredData, getSessionData, setSessionData, STORAGE_KEYS, INITIAL_USERS, INITIAL_TEAMS, INITIAL_BREAKS, INITIAL_WC_TRACKING, INITIAL_WARNINGS, INITIAL_HEADLINES, INITIAL_CONFIG, INITIAL_DAILY_LOGS } from '../lib/storage';
 import { playSound } from '../lib/sound';
 import { loginWithGooglePopup, logoutFirebaseAuth, isEmailAllowedToLogin } from '../lib/authService';
 import {
@@ -25,6 +25,7 @@ import {
   firestoreHeartbeat,
   firestoreSaveDailyLog,
   executeFirestoreBatchAction,
+  executeFirestoreTeamBreakLock,
 } from '../lib/firestoreDb';
 import {
   sendBreakExceededNotification,
@@ -108,8 +109,12 @@ interface AppContextType {
   resetAllBreaks: () => void;
   exportDataJSON: () => string;
   executeBatchAction: (action: BatchActionType, selectedAgentEmails: string[], options?: { forcedBy?: string; warningReason?: string; warningNote?: string }) => Promise<{ success: boolean }>;
+  resetAllFloor: (teamId?: string) => Promise<{ success: boolean }>;
+  blockTeamBreaks: (teamId: string) => Promise<{ success: boolean }>;
+  unblockTeamBreaks: (teamId: string) => Promise<{ success: boolean }>;
   exportActivityLogsCSV: (timeframe: 'today' | 'yesterday' | '7days') => string;
   downloadActivityLogsCSV: (timeframe: 'today' | 'yesterday' | '7days') => void;
+  downloadTeamBreakLogsCSV: (teamId?: string, days?: number) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -127,7 +132,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_USERS.find(u => u.email === 'adhambadraan@gmail.com') || null;
   });
 
-  const [activeTeamId, setActiveTeamId] = useState<string>(() => currentUser?.teamId || 'team_strikers');
+  const [activeTeamId, setActiveTeamId] = useState<string>(() => {
+    const sessionTeam = getSessionData<string | null>(STORAGE_KEYS.ACTIVE_TEAM_FILTER, null);
+    if (sessionTeam) return sessionTeam;
+    return currentUser?.teamId || 'cai-1';
+  });
   const [breaks, setBreaks] = useState<BreakRecord[]>(() => getStoredData(STORAGE_KEYS.BREAKS, INITIAL_BREAKS));
   const [wcTracking, setWcTracking] = useState<Record<string, WCTracking>>(() => getStoredData(STORAGE_KEYS.WC_TRACKING, INITIAL_WC_TRACKING));
   const [warnings, setWarnings] = useState<Warning[]>(() => getStoredData(STORAGE_KEYS.WARNINGS, INITIAL_WARNINGS));
@@ -250,9 +259,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => setStoredData(STORAGE_KEYS.NOTES, shiftNotes), [shiftNotes]);
   useEffect(() => setStoredData(STORAGE_KEYS.DAILY_LOGS, dailyLogs), [dailyLogs]);
 
-  // If currentUser changes, ensure team aligns if supervisor/agent
+  // Persist activeTeam filter in sessionStorage
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer') {
+    if (activeTeamId) {
+      setSessionData(STORAGE_KEYS.ACTIVE_TEAM_FILTER, activeTeamId);
+    }
+  }, [activeTeamId]);
+
+  // If currentUser changes, ensure team aligns if agent (agents are restricted to their team)
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'agent') {
       setActiveTeamId(currentUser.teamId);
     }
   }, [currentUser]);
@@ -278,6 +294,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (elapsedSeconds === 900 || (brk.breakType === 'bonus' && elapsedSeconds === (brk.slotDuration || 600))) {
             playSound('limit_exceeded');
             addHeadline(`🚨 URGENCY ALERT: ${brk.agentName} has exceeded maximum allowed break time!`, 'warning', 'urgent');
+            sendBreakExceededNotification({
+              agentName: brk.agentName,
+              agentEmail: brk.agentEmail,
+              breakType: brk.breakType,
+              durationMinutes: Math.round(elapsedSeconds / 60),
+              allowedMinutes: brk.breakType === 'bonus' ? 10 : 15,
+            });
           }
 
           // Auto-end regular break after 15 minutes (900s) + issue Level 1 Warning
@@ -1146,7 +1169,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers(prev => prev.map(u => {
       if (!selectedAgentEmails.includes(u.email)) return u;
 
-      if (action === 'END_BREAK') {
+      if (action === 'RESET_FLOOR') {
+        return { ...u, status: 'FLOOR', isBreakAllowed: true, isBlocked: false, blockReason: undefined };
+      } else if (action === 'END_BREAK') {
         return { ...u, status: 'FLOOR', isBreakAllowed: true, isBlocked: false };
       } else if (action === 'HOLD') {
         return { ...u, status: 'HOLD', isBreakAllowed: false };
@@ -1156,8 +1181,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return u;
     }));
 
-    // 2. If END_BREAK or BLOCK, force-end active breaks
-    if (action === 'END_BREAK' || action === 'BLOCK') {
+    // 2. If RESET_FLOOR, END_BREAK or BLOCK, force-end active breaks
+    if (action === 'RESET_FLOOR' || action === 'END_BREAK' || action === 'BLOCK') {
       setBreaks(prev => prev.map(b => {
         if (selectedAgentEmails.includes(b.agentEmail) && b.isActive) {
           const duration = Math.floor((now - b.startTime) / 1000);
@@ -1201,7 +1226,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // 4. Trigger audio and visual feedback
-    if (action === 'END_BREAK') {
+    if (action === 'RESET_FLOOR') {
+      playSound('break_end');
+      addHeadline(`🧹 END-OF-SHIFT CLEANUP: ${selectedAgentEmails.length} agents reset to FLOOR status by ${forcedBy}`, 'alert', 'urgent');
+    } else if (action === 'END_BREAK') {
       playSound('break_end');
       addHeadline(`☕ BATCH ACTION: Breaks ended for ${selectedAgentEmails.length} agents by ${forcedBy}`, 'break', 'urgent');
     } else if (action === 'HOLD') {
@@ -1230,6 +1258,143 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       warningNote: options?.warningNote,
     });
 
+    return { success: true };
+  };
+
+  const resetAllFloor = async (targetTeamId?: string): Promise<{ success: boolean }> => {
+    const isAll = !targetTeamId || targetTeamId.toUpperCase() === 'ALL';
+    const targetAgents = isAll
+      ? users.filter(u => u.role === 'agent')
+      : users.filter(u => u.teamId === targetTeamId && u.role === 'agent');
+
+    if (targetAgents.length === 0) return { success: false };
+
+    const targetEmails = targetAgents.map(a => a.email);
+    const forcedBy = currentUser?.name || 'Supervisor';
+    const now = Date.now();
+
+    // 1. Revert local users state
+    setUsers(prev => prev.map(u => {
+      if (targetEmails.includes(u.email)) {
+        return {
+          ...u,
+          status: 'FLOOR',
+          isBreakAllowed: true,
+          isBlocked: false,
+          blockReason: undefined,
+        };
+      }
+      return u;
+    }));
+
+    // 2. Force end active breaks
+    setBreaks(prev => prev.map(b => {
+      if (targetEmails.includes(b.agentEmail) && b.isActive) {
+        const duration = Math.floor((now - b.startTime) / 1000);
+        return {
+          ...b,
+          isActive: false,
+          endTime: now,
+          duration,
+          isForcedEnded: true,
+          forcedEndBy: forcedBy,
+        };
+      }
+      return b;
+    }));
+
+    playSound('break_end');
+    const teamName = isAll ? 'Entire Sales Floor' : (teams.find(t => t.teamId === targetTeamId)?.teamName || targetTeamId);
+    addHeadline(`🧹 END-OF-SHIFT RESET: All agents on ${teamName} reverted to FLOOR status by ${forcedBy}`, 'alert', 'urgent');
+    logAudit('end_of_shift_reset_floor', 'admin', { teamId: targetTeamId, forcedBy, count: targetAgents.length });
+
+    // 3. Firestore Batch Action Sync
+    await executeFirestoreBatchAction('RESET_FLOOR', targetEmails, breaks, users, { forcedBy });
+    return { success: true };
+  };
+
+  const blockTeamBreaks = async (teamId: string): Promise<{ success: boolean }> => {
+    const targetTeam = teams.find(t => t.teamId === teamId);
+    const teamName = targetTeam?.teamName || teamId.toUpperCase();
+    const teamAgentList = users.filter(u => u.teamId === teamId && u.role === 'agent');
+    if (teamAgentList.length === 0) return { success: false };
+
+    const now = Date.now();
+    const forcedBy = currentUser?.name || 'Supervisor';
+
+    // 1. Update local users
+    setUsers(prev => prev.map(u => {
+      if (u.teamId === teamId && u.role === 'agent') {
+        return {
+          ...u,
+          status: 'BLOCKED',
+          isBreakAllowed: false,
+          isBlocked: true,
+          blockReason: 'Team-Wide Break Lockdown',
+        };
+      }
+      return u;
+    }));
+
+    // 2. Update team state
+    setTeams(prev => prev.map(t => t.teamId === teamId ? { ...t, isBreakBlocked: true } : t));
+
+    // 3. Force-end any active breaks in this team
+    setBreaks(prev => prev.map(b => {
+      if (b.teamId === teamId && b.isActive) {
+        const duration = Math.floor((now - b.startTime) / 1000);
+        return {
+          ...b,
+          isActive: false,
+          endTime: now,
+          duration,
+          isForcedEnded: true,
+          forcedEndBy: forcedBy,
+        };
+      }
+      return b;
+    }));
+
+    playSound('limit_exceeded');
+    addHeadline(`🚫 TEAM BREAK LOCKDOWN: Breaks blocked for all members of ${teamName} by ${forcedBy}`, 'warning', 'critical');
+    logAudit('team_breaks_blocked', 'admin', { teamId, teamName, forcedBy, agentCount: teamAgentList.length });
+
+    // 4. Firestore Batch Update
+    await executeFirestoreTeamBreakLock(teamId, true, teamAgentList, breaks, { forcedBy });
+    return { success: true };
+  };
+
+  const unblockTeamBreaks = async (teamId: string): Promise<{ success: boolean }> => {
+    const targetTeam = teams.find(t => t.teamId === teamId);
+    const teamName = targetTeam?.teamName || teamId.toUpperCase();
+    const teamAgentList = users.filter(u => u.teamId === teamId && u.role === 'agent');
+    if (teamAgentList.length === 0) return { success: false };
+
+    const forcedBy = currentUser?.name || 'Supervisor';
+
+    // 1. Update local users
+    setUsers(prev => prev.map(u => {
+      if (u.teamId === teamId && u.role === 'agent') {
+        return {
+          ...u,
+          status: 'FLOOR',
+          isBreakAllowed: true,
+          isBlocked: false,
+          blockReason: undefined,
+        };
+      }
+      return u;
+    }));
+
+    // 2. Update team state
+    setTeams(prev => prev.map(t => t.teamId === teamId ? { ...t, isBreakBlocked: false } : t));
+
+    playSound('break_end');
+    addHeadline(`🟢 TEAM BREAKS RESTORED: Break privileges unblocked for all members of ${teamName}`, 'break', 'urgent');
+    logAudit('team_breaks_unblocked', 'admin', { teamId, teamName, forcedBy, agentCount: teamAgentList.length });
+
+    // 3. Firestore Batch Update
+    await executeFirestoreTeamBreakLock(teamId, false, teamAgentList, breaks, { forcedBy });
     return { success: true };
   };
 
@@ -1313,6 +1478,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     playSound('click');
     addHeadline(`📊 CSV EXPORT: Downloaded activity logs (${timeframe.toUpperCase()})`, 'info', 'normal');
     logAudit('csv_logs_exported', 'admin', { timeframe, fileName });
+  };
+
+  const downloadTeamBreakLogsCSV = (targetTeamId?: string, days = 7) => {
+    const selectedId = targetTeamId || activeTeamId;
+    const isAll = !selectedId || selectedId.toUpperCase() === 'ALL';
+    const teamObj = teams.find(t => t.teamId === selectedId);
+    const targetTeamName = isAll ? 'All_Teams' : (teamObj?.teamName || selectedId).replace(/\s+/g, '_');
+
+    const cutoffTimestamp = Date.now() - (days * 24 * 60 * 60 * 1000);
+
+    // Filter breaks from the last 7 days for the selected team
+    const filteredBreaks = breaks.filter(b => {
+      if (b.startTime < cutoffTimestamp) return false;
+      if (isAll) return true;
+      const agent = users.find(u => u.email === b.agentEmail);
+      return b.teamId === selectedId || agent?.teamId === selectedId;
+    });
+
+    const headers = [
+      'Break ID',
+      'Agent Name',
+      'Agent Email',
+      'Team',
+      'Date',
+      'Break Type',
+      'Slot Number',
+      'Start Time',
+      'End Time',
+      'Duration (Seconds)',
+      'Duration (Formatted)',
+      'Status',
+      'Is Bonus',
+      'Forced Ended',
+      'Forced By / Granted By',
+    ];
+
+    const rows = filteredBreaks.map(b => {
+      const bTeam = teams.find(t => t.teamId === b.teamId)?.teamName || b.teamId;
+      const startDate = new Date(b.startTime).toLocaleString();
+      const endDate = b.endTime ? new Date(b.endTime).toLocaleString() : 'Active';
+      const durationMins = Math.floor(b.duration / 60);
+      const durationSecs = b.duration % 60;
+      const formattedDuration = `${durationMins}m ${durationSecs}s`;
+      const status = b.isActive ? 'Active' : b.isForcedEnded ? 'Forced Ended' : 'Completed';
+
+      return [
+        `"${b.breakId}"`,
+        `"${(b.agentName || '').replace(/"/g, '""')}"`,
+        `"${(b.agentEmail || '').replace(/"/g, '""')}"`,
+        `"${(bTeam || '').replace(/"/g, '""')}"`,
+        `"${b.date}"`,
+        `"${b.breakType.toUpperCase()}"`,
+        b.slotNumber || 1,
+        `"${startDate}"`,
+        `"${endDate}"`,
+        b.duration,
+        `"${formattedDuration}"`,
+        `"${status}"`,
+        b.isBonus ? 'YES' : 'NO',
+        b.isForcedEnded ? 'YES' : 'NO',
+        `"${(b.forcedEndBy || b.grantedBy || 'N/A').replace(/"/g, '""')}"`,
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `BCFBreaks_7Day_BreakLogs_${targetTeamName}_${dateStr}.csv`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    playSound('click');
+    addHeadline(`📊 CSV EXPORT: Downloaded 7-day break logs for ${isAll ? 'All Teams' : teamObj?.teamName || selectedId}`, 'info', 'normal');
+    logAudit('csv_break_logs_exported', 'admin', { teamId: selectedId, days, recordCount: filteredBreaks.length });
   };
 
   const exportDataJSON = () => {
@@ -1409,8 +1655,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetAllBreaks,
         exportDataJSON,
         executeBatchAction,
+        resetAllFloor,
+        blockTeamBreaks,
+        unblockTeamBreaks,
         exportActivityLogsCSV,
         downloadActivityLogsCSV,
+        downloadTeamBreakLogsCSV,
       }}
     >
       {children}

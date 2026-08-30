@@ -15,6 +15,7 @@ const STORAGE_KEYS = {
   NOTES: 'bcf_notes_v3',
   COMPETITIONS: 'bcf_competitions_v3',
   DAILY_LOGS: 'bcf_daily_logs_v3',
+  ACTIVE_TEAM_FILTER: 'bcf_active_team_filter_v1',
 };
 
 export const INITIAL_TEAMS: Team[] = [
@@ -1659,6 +1660,26 @@ export function setStoredData<T>(key: string, value: T): void {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
     console.error('Storage write error', e);
+  }
+}
+
+export function getSessionData<T>(key: string, defaultValue: T): T {
+  if (typeof window === 'undefined') return defaultValue;
+  try {
+    const item = sessionStorage.getItem(key);
+    if (!item) return defaultValue;
+    return JSON.parse(item);
+  } catch {
+    return defaultValue;
+  }
+}
+
+export function setSessionData<T>(key: string, value: T): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error('SessionStorage write error', e);
   }
 }
 

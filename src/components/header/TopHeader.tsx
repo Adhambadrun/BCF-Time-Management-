@@ -36,7 +36,19 @@ export const TopHeader: React.FC = () => {
 
   const isAdham = currentUser?.email?.toLowerCase() === 'adhambadraan@gmail.com' || currentUser?.email?.toLowerCase() === 'adhambadran@bcflights.com';
 
-  const activeTeam = teams.find(t => t.teamId === activeTeamId) || teams[0];
+  const isAllTeams = activeTeamId === 'ALL';
+  const totalFloorAgents = users.filter(u => u.role === 'agent').length;
+  const activeTeam = isAllTeams
+    ? {
+        teamId: 'ALL',
+        teamName: 'ALL TEAMS',
+        teamColorAccent: '#FFD700',
+        teamLogo: '/logo.png',
+        agentCount: totalFloorAgents,
+        competitionScore: 100,
+        isActive: true,
+      }
+    : teams.find(t => t.teamId === activeTeamId) || teams[0];
   const capacityPercent = Math.min(100, Math.round((activeBreaksCount / shiftConfig.breakCapacity) * 100));
 
   // Close dropdown on click outside
@@ -166,7 +178,31 @@ export const TopHeader: React.FC = () => {
                         ⚙️ Manage All
                       </button>
                     </div>
-                    <div className="space-y-1 max-h-56 overflow-y-auto">
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {/* Global All Teams Option */}
+                      <button
+                        onClick={() => {
+                          setActiveTeamId('ALL');
+                          setIsTeamSelectorOpen(false);
+                          playSound('click');
+                        }}
+                        className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all ${
+                          activeTeamId === 'ALL'
+                            ? 'bg-yellow-400/20 border border-yellow-400/50 text-white font-semibold'
+                            : 'hover:bg-zinc-800/60 text-zinc-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-yellow-400 to-amber-500 flex items-center justify-center text-[10px] text-black font-bold">
+                            🌐
+                          </div>
+                          <span className="font-orbitron text-sm">All Teams (Global)</span>
+                        </div>
+                        <span className="text-xs text-zinc-400 font-teko text-base">
+                          {totalFloorAgents} pods
+                        </span>
+                      </button>
+
                       {teams.map(team => (
                         <button
                           key={team.teamId}

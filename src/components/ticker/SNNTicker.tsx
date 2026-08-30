@@ -70,21 +70,11 @@ export const SNNTicker: React.FC = () => {
           <span>SNN LIVE</span>
         </div>
 
-        {/* CENTER: Infinite Marquee Stream with 45s pace and hover pause */}
-        <div className="flex-1 overflow-hidden relative mx-4 group cursor-pointer">
-          <motion.div
-            className="whitespace-nowrap flex items-center gap-8 text-xs font-inter text-zinc-200"
-            animate={{ x: ['0%', '-50%'] }}
-            transition={{
-              repeat: Infinity,
-              ease: 'linear',
-              duration: 45,
-            }}
-            whileHover={{ animationPlayState: 'paused' }}
-            style={{ display: 'inline-flex' }}
-          >
+        {/* CENTER: Infinite Marquee Stream with 45s pace and instant hover pause */}
+        <div className="flex-1 overflow-hidden relative mx-4 cursor-pointer">
+          <div className="animate-marquee-slow flex items-center gap-8 text-xs font-inter text-zinc-200">
             {displayHeadlines.map((hl, i) => (
-              <span key={hl.headlineId + '_' + i} className="inline-flex items-center gap-1.5">
+              <span key={hl.headlineId + '_' + i} className="inline-flex items-center gap-1.5 shrink-0">
                 {getCategoryIcon(hl.category)}
                 <span
                   className={
@@ -102,7 +92,7 @@ export const SNNTicker: React.FC = () => {
             ))}
             {/* Duplicate set for continuous seamless loop */}
             {displayHeadlines.map((hl, i) => (
-              <span key={'dup_' + hl.headlineId + '_' + i} className="inline-flex items-center gap-1.5">
+              <span key={'dup_' + hl.headlineId + '_' + i} className="inline-flex items-center gap-1.5 shrink-0">
                 {getCategoryIcon(hl.category)}
                 <span
                   className={
@@ -118,7 +108,7 @@ export const SNNTicker: React.FC = () => {
                 <span className="text-yellow-400 font-bold mx-2">|||</span>
               </span>
             ))}
-          </motion.div>
+          </div>
         </div>
 
         {/* RIGHT: Expand News Panel Button */}

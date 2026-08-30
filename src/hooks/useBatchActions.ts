@@ -3,7 +3,7 @@ import { writeBatch, doc, serverTimestamp, increment } from 'firebase/firestore'
 import { db } from '../services/firebase';
 import { playSound } from '../lib/sound';
 
-export type BatchActionType = 'END_BREAK' | 'HOLD' | 'BLOCK' | 'WARNING';
+export type BatchActionType = 'END_BREAK' | 'HOLD' | 'BLOCK' | 'WARNING' | 'RESET_FLOOR';
 
 export const useBatchActions = (
   allAgentIds: string[],
@@ -36,17 +36,32 @@ export const useBatchActions = (
 
   // Execute Firestore Batch Update
   const executeBatchAction = async (action: BatchActionType) => {
-    if (selectedAgentIds.length === 0 || isExecuting) return;
+    // If RESET_FLOOR and no specific agents selected, apply to all agents
+    const targetAgentIds =
+      action === 'RESET_FLOOR' && selectedAgentIds.length === 0
+        ? allAgentIds
+        : selectedAgentIds;
+
+    if (targetAgentIds.length === 0 || isExecuting) return;
     setIsExecuting(true);
 
     try {
       if (db) {
         const batch = writeBatch(db);
 
-        selectedAgentIds.forEach((agentId) => {
+        targetAgentIds.forEach((agentId) => {
           const agentRef = doc(db, 'agents', agentId);
 
           switch (action) {
+            case 'RESET_FLOOR':
+              batch.update(agentRef, {
+                status: 'FLOOR',
+                breakEndedAt: serverTimestamp(),
+                isBreakAllowed: true,
+                isBlocked: false,
+                blockReason: '',
+              });
+              break;
             case 'END_BREAK':
               batch.update(agentRef, {
                 status: 'FLOOR',
@@ -80,14 +95,14 @@ export const useBatchActions = (
 
       // Sync local state if handler provided
       if (onLocalBatchSync) {
-        onLocalBatchSync(action, selectedAgentIds);
+        onLocalBatchSync(action, targetAgentIds);
       }
 
       playSound(action === 'WARNING' || action === 'BLOCK' ? 'warning' : 'break_end');
     } catch (err) {
       console.warn('Firestore Batch Action fallback to local context:', err);
       if (onLocalBatchSync) {
-        onLocalBatchSync(action, selectedAgentIds);
+        onLocalBatchSync(action, targetAgentIds);
       }
     } finally {
       setIsExecuting(false);

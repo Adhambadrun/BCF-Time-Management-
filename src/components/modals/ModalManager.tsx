@@ -30,10 +30,18 @@ import {
   FolderPlus,
   ArrowRightLeft,
   Check,
+  FileText,
+  Download,
+  UserX,
+  Activity,
+  TrendingUp,
+  BarChart3,
+  ExternalLink,
 } from 'lucide-react';
 import { playSound } from '../../lib/sound';
 import { BreakType, UserRole } from '../../types';
 import { SystemAdminModal } from './SystemAdminModal';
+import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 
 const EMBLEM_PRESETS = [
   { label: 'Eagle Strike', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80' },
@@ -82,6 +90,7 @@ export const ModalManager: React.FC = () => {
     breaks,
     warnings,
     endBreak,
+    shiftConfig,
   } = useApp();
 
   // Local states for modal forms
@@ -91,6 +100,8 @@ export const ModalManager: React.FC = () => {
   const [bonusReason, setBonusReason] = useState('Qualified 10+ BQ leads with live bookings! 🍕');
   const [newAvatarUrl, setNewAvatarUrl] = useState('');
   const [blockReason, setBlockReason] = useState('Floor attendance audit');
+  const [reassignTeamChoice, setReassignTeamChoice] = useState('');
+  const [removeActionChoice, setRemoveActionChoice] = useState<'hold' | 'reassign' | 'delete'>('hold');
   const [appealText, setAppealText] = useState('');
   const [broadcastText, setBroadcastText] = useState('');
   const [broadcastPriority, setBroadcastPriority] = useState<'normal' | 'urgent' | 'critical'>('normal');
@@ -126,6 +137,7 @@ export const ModalManager: React.FC = () => {
   const [createTeamLogo, setCreateTeamLogo] = useState(EMBLEM_PRESETS[0].url);
   const [createTeamColor, setCreateTeamColor] = useState('#00E5FF');
   const [isCreatingNewTeamView, setIsCreatingNewTeamView] = useState(false);
+  const [agentShiftNoteText, setAgentShiftNoteText] = useState('');
 
   // Populate edit fields when modal opens
   useEffect(() => {
@@ -142,6 +154,8 @@ export const ModalManager: React.FC = () => {
       setNewAgentAvatar(AVATAR_PRESETS[Math.floor(Math.random() * AVATAR_PRESETS.length)]);
       setNewAgentMotto('Target locked, ready to close');
       setNewAgentEmoji('⚡');
+    } else if ((activeModal === 'agentDetail' || activeModal === 'shiftNote') && modalData?.agent) {
+      setAgentShiftNoteText(modalData.agent.shiftNote || '');
     }
   }, [activeModal, modalData, activeTeamId]);
 
@@ -159,10 +173,40 @@ export const ModalManager: React.FC = () => {
     }
   };
 
-  if (!activeModal) return null;
+  const KNOWN_MODAL_NAMES = [
+    'warning',
+    'bonus',
+    'agentDetail',
+    'agentReport',
+    'removeAgent',
+    'weather',
+    'replay',
+    'leaderboard',
+    'broadcast',
+    'profile',
+    'handover',
+    'changePicture',
+    'blockAgent',
+    'editTeam',
+    'addAgent',
+    'manageTeams',
+    'systemAdmin',
+    'systemManagement',
+    'shortcuts',
+    'shiftNote',
+  ];
+
+  if (!activeModal || !KNOWN_MODAL_NAMES.includes(activeModal)) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl overflow-y-auto">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          closeModal();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-2xl overflow-y-auto"
+    >
       {/* 1. WARNING ISSUANCE MODAL (PART 12) */}
       {activeModal === 'warning' && (
         <GlassPanel material="thick" className="w-full max-w-lg p-6 border-2 border-yellow-400/50 shadow-2xl">
@@ -334,6 +378,51 @@ export const ModalManager: React.FC = () => {
             <div className="p-3 rounded-2xl bg-black/60 border border-white/10">
               <div className="text-[10px] text-zinc-400 font-orbitron">DISCIPLINE</div>
               <div className="text-xl font-teko text-emerald-400 font-bold">98.4% (A+)</div>
+            </div>
+          </div>
+
+          {/* SHIFT NOTES CONTEXT UPDATES */}
+          <div className="p-3.5 rounded-2xl bg-black/60 border border-yellow-400/30 mb-5 space-y-2">
+            <div className="flex items-center justify-between text-xs font-orbitron font-semibold text-yellow-400">
+              <span className="flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-yellow-400" />
+                Shift Note / Context Update
+              </span>
+              {modalData.agent.shiftNoteUpdatedAt && (
+                <span className="text-[10px] text-zinc-400 font-mono font-normal">
+                  Updated {new Date(modalData.agent.shiftNoteUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </div>
+
+            <textarea
+              value={agentShiftNoteText}
+              onChange={(e) => setAgentShiftNoteText(e.target.value)}
+              placeholder="E.g. On client escalations till 2am, taking late meal with lead approval..."
+              rows={2}
+              maxLength={200}
+              className="w-full bg-black/80 border border-white/10 rounded-xl p-2.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-yellow-400/50 resize-none font-inter"
+            />
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[10px] text-zinc-500">
+                {agentShiftNoteText.length}/200 chars · Visible on supervisor deck
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  updateUserProfile(modalData.agent.email, {
+                    shiftNote: agentShiftNoteText.trim(),
+                    shiftNoteUpdatedAt: Date.now(),
+                    shiftNoteAuthor: currentUser?.name || 'Agent',
+                  });
+                  playSound('bonus');
+                }}
+                className="px-3 py-1 rounded-lg bg-yellow-400/20 hover:bg-yellow-400/30 border border-yellow-400/50 text-yellow-300 text-[11px] font-orbitron font-bold flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <Check className="w-3 h-3" />
+                Save Note
+              </button>
             </div>
           </div>
 
@@ -604,6 +693,395 @@ export const ModalManager: React.FC = () => {
                 className="p-2.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-orange-300 font-orbitron text-xs font-semibold text-center cursor-pointer transition-colors"
               >
                 ⚠️ Issue Warning
+              </button>
+            </div>
+          </div>
+        </GlassPanel>
+      )}
+
+      {/* 3.B. AGENT AUDIT REPORT & BREAK LOG MODAL */}
+      {activeModal === 'agentReport' && modalData?.agent && (
+        <GlassPanel material="thick" className="w-full max-w-2xl p-6 border-2 border-cyan/50 shadow-2xl max-h-[90vh] overflow-y-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+            <div className="flex items-center gap-3">
+              <img
+                src={modalData.agent.avatarUrl}
+                alt={modalData.agent.name}
+                className="w-12 h-12 rounded-full object-cover border-2 border-cyan shadow-lg"
+                referrerPolicy="no-referrer"
+              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-white font-orbitron font-bold text-lg">{modalData.agent.name}</h3>
+                  <span className="text-[10px] font-orbitron font-bold uppercase px-2 py-0.5 rounded bg-cyan/20 text-cyan border border-cyan/40">
+                    {modalData.agent.role}
+                  </span>
+                </div>
+                <div className="text-xs text-zinc-400 font-mono flex items-center gap-2 mt-0.5">
+                  <span>{modalData.agent.email}</span>
+                  <span>·</span>
+                  <span className="text-yellow-400 font-orbitron">
+                    Team: {teams.find(t => t.teamId === modalData.agent.teamId)?.teamName || modalData.agent.teamId}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button onClick={closeModal} className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-5 font-inter text-xs">
+            {/* KPI Performance Metric Cards */}
+            {(() => {
+              const agentBreaks = breaks.filter(b => b.agentEmail.toLowerCase() === modalData.agent.email.toLowerCase());
+              const todayStr = new Date().toISOString().split('T')[0];
+              const todayBreaks = agentBreaks.filter(b => b.date === todayStr);
+              const totalMinutesToday = todayBreaks.reduce((acc, b) => acc + Math.round((b.duration || 0) / 60), 0);
+              const wcMinutesToday = todayBreaks
+                .filter(b => b.breakType === 'wc')
+                .reduce((acc, b) => acc + Math.round((b.duration || 0) / 60), 0);
+              const overtimeIncidents = todayBreaks.filter(b => (b.duration || 0) > (shiftConfig?.maxSlotDuration || 15) * 60).length;
+              const agentWarnings = warnings.filter(w => w.agentEmail.toLowerCase() === modalData.agent.email.toLowerCase());
+
+              return (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {/* Total Break Time */}
+                    <div className="p-3 rounded-2xl bg-black/60 border border-white/10 space-y-1">
+                      <div className="text-[10px] font-orbitron text-zinc-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-cyan" /> Total Break Time
+                      </div>
+                      <div className="text-2xl font-teko text-cyan font-bold leading-none">
+                        {totalMinutesToday} <span className="text-zinc-500 text-base font-normal">/ 60m</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400">
+                        {Math.max(0, 60 - totalMinutesToday)}m daily allowance remaining
+                      </div>
+                    </div>
+
+                    {/* Breaks Taken Today */}
+                    <div className="p-3 rounded-2xl bg-black/60 border border-white/10 space-y-1">
+                      <div className="text-[10px] font-orbitron text-zinc-400 flex items-center gap-1">
+                        <Coffee className="w-3 h-3 text-yellow-400" /> Breaks Count
+                      </div>
+                      <div className="text-2xl font-teko text-yellow-400 font-bold leading-none">
+                        {todayBreaks.length} <span className="text-zinc-500 text-base font-normal">slots</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400">
+                        {todayBreaks.filter(b => b.isActive).length > 0 ? '🟢 1 active break right now' : 'Floor Active'}
+                      </div>
+                    </div>
+
+                    {/* WC Usage */}
+                    <div className="p-3 rounded-2xl bg-black/60 border border-white/10 space-y-1">
+                      <div className="text-[10px] font-orbitron text-zinc-400 flex items-center gap-1">
+                        <Activity className="w-3 h-3 text-blue-400" /> WC Time
+                      </div>
+                      <div className="text-2xl font-teko text-blue-400 font-bold leading-none">
+                        {wcMinutesToday} <span className="text-zinc-500 text-base font-normal">/ 20m</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400">
+                        {todayBreaks.filter(b => b.breakType === 'wc').length} restroom trip(s)
+                      </div>
+                    </div>
+
+                    {/* Warnings & Penalty */}
+                    <div className="p-3 rounded-2xl bg-black/60 border border-white/10 space-y-1">
+                      <div className="text-[10px] font-orbitron text-zinc-400 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-crimson" /> Active Warnings
+                      </div>
+                      <div className="text-2xl font-teko text-crimson font-bold leading-none">
+                        {agentWarnings.filter(w => !w.isAppealed).length} <span className="text-zinc-500 text-base font-normal">active</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400">
+                        {overtimeIncidents > 0 ? `⚠️ ${overtimeIncidents} overrun(s) logged` : 'No violations today'}
+                      </div>
+                    </div>
+
+                    {/* Bonus Breaks Earned */}
+                    <div className="p-3 rounded-2xl bg-black/60 border border-white/10 space-y-1">
+                      <div className="text-[10px] font-orbitron text-zinc-400 flex items-center gap-1">
+                        <Gift className="w-3 h-3 text-emerald-400" /> Bonus Rewards
+                      </div>
+                      <div className="text-2xl font-teko text-emerald-400 font-bold leading-none">
+                        {modalData.agent.totalBonusReceived || 0} <span className="text-zinc-500 text-base font-normal">granted</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400">
+                        +10m bonus break allowance
+                      </div>
+                    </div>
+
+                    {/* Streak & Punctuality */}
+                    <div className="p-3 rounded-2xl bg-black/60 border border-white/10 space-y-1">
+                      <div className="text-[10px] font-orbitron text-zinc-400 flex items-center gap-1">
+                        <Award className="w-3 h-3 text-purple-400" /> Punctuality Streak
+                      </div>
+                      <div className="text-2xl font-teko text-purple-400 font-bold leading-none">
+                        {modalData.agent.currentStreak || 0} <span className="text-zinc-500 text-base font-normal">days</span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400">
+                        Best: {modalData.agent.longestStreak || modalData.agent.currentStreak || 0} days clean
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Break History Log Table */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="font-orbitron font-bold text-sm text-zinc-200 flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-cyan" />
+                        Shift Break Activity History ({agentBreaks.length})
+                      </div>
+
+                      {/* Export Single Agent CSV */}
+                      <button
+                        onClick={() => {
+                          const headers = 'BreakID,Date,AgentName,Email,Team,Type,StartTime,EndTime,DurationSec,DurationMin,Status,EndedBy\n';
+                          const rows = agentBreaks.map(b => {
+                            const startTimeStr = b.startTime ? new Date(b.startTime).toLocaleTimeString() : 'N/A';
+                            const endTimeStr = b.endTime ? new Date(b.endTime).toLocaleTimeString() : (b.isActive ? 'IN_PROGRESS' : 'N/A');
+                            const durMin = Math.round((b.duration || 0) / 60);
+                            const status = b.isActive ? 'ACTIVE' : ((b.duration || 0) > 15 * 60 ? 'OVERTIME' : 'COMPLETED');
+                            return `"${b.breakId}","${b.date}","${modalData.agent.name}","${b.agentEmail}","${b.teamId}","${b.breakType}","${startTimeStr}","${endTimeStr}","${b.duration}","${durMin}","${status}","${b.endedBy || 'self'}"`;
+                          }).join('\n');
+
+                          const csvBlob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
+                          const url = URL.createObjectURL(csvBlob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.setAttribute('download', `Agent_Report_${modalData.agent.name.replace(/\s+/g, '_')}_${todayStr}.csv`);
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          URL.revokeObjectURL(url);
+                          playSound('click');
+                        }}
+                        className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-zinc-200 font-orbitron text-[11px] flex items-center gap-1 transition-colors"
+                        title="Download CSV report of this agent's break logs"
+                      >
+                        <Download className="w-3 h-3 text-cyan" />
+                        Export Agent CSV
+                      </button>
+                    </div>
+
+                    <div className="max-h-56 overflow-y-auto rounded-2xl bg-black/60 border border-white/10 divide-y divide-white/5">
+                      {agentBreaks.length === 0 ? (
+                        <div className="p-6 text-center text-zinc-500 font-orbitron text-xs">
+                          No break events logged for this agent pod yet.
+                        </div>
+                      ) : (
+                        agentBreaks.map((b, idx) => {
+                          const durMin = Math.floor((b.duration || 0) / 60);
+                          const durSec = (b.duration || 0) % 60;
+                          const isOvertime = (b.duration || 0) > (shiftConfig?.maxSlotDuration || 15) * 60;
+
+                          return (
+                            <div key={b.breakId || idx} className="p-2.5 flex items-center justify-between gap-2 hover:bg-white/5 transition-colors">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${b.isActive ? 'bg-cyan animate-pulse' : (isOvertime ? 'bg-crimson' : 'bg-emerald-400')}`} />
+                                <span className="font-orbitron font-semibold text-white uppercase text-[11px]">
+                                  {b.breakType}
+                                </span>
+                                <span className="text-[10px] text-zinc-400 font-mono">
+                                  {b.startTime ? new Date(b.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : b.date}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className={`font-mono font-bold ${isOvertime ? 'text-crimson' : 'text-zinc-200'}`}>
+                                  {durMin}m {durSec.toString().padStart(2, '0')}s
+                                </span>
+                                <span className={`text-[10px] font-orbitron px-1.5 py-0.5 rounded ${
+                                  b.isActive ? 'bg-cyan/20 text-cyan' : isOvertime ? 'bg-crimson/20 text-crimson' : 'bg-emerald-500/20 text-emerald-300'
+                                }`}>
+                                  {b.isActive ? 'LIVE' : isOvertime ? 'OVERTIME' : 'DONE'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Disciplinary Warnings List if any */}
+                  {agentWarnings.length > 0 && (
+                    <div className="p-3 rounded-2xl bg-crimson/10 border border-crimson/30 space-y-2">
+                      <div className="font-orbitron font-bold text-xs text-crimson flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        Disciplinary Record ({agentWarnings.length} Warnings)
+                      </div>
+                      <div className="space-y-1.5">
+                        {agentWarnings.map((w, i) => (
+                          <div key={w.warningId || i} className="p-2 rounded-xl bg-black/50 text-[11px] flex items-center justify-between gap-2">
+                            <div>
+                              <span className="font-orbitron font-bold text-yellow-400 mr-2">Level {w.level}</span>
+                              <span className="text-zinc-300">{w.reason}</span>
+                            </div>
+                            <span className="text-[10px] text-zinc-500 font-mono">{w.timestamp ? new Date(w.timestamp).toLocaleDateString() : ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+
+            {/* Modal Actions Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-white/10">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    openModal('bonus', { agent: modalData.agent });
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-yellow-400/20 hover:bg-yellow-400/30 border border-yellow-400/40 text-yellow-300 font-orbitron font-semibold text-xs flex items-center gap-1"
+                >
+                  <Gift className="w-3.5 h-3.5" /> Grant Bonus
+                </button>
+                <button
+                  onClick={() => {
+                    openModal('warning', { agent: modalData.agent });
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-crimson/20 hover:bg-crimson/30 border border-crimson/40 text-red-400 font-orbitron font-semibold text-xs flex items-center gap-1"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" /> Issue Warning
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={closeModal}
+                  className="px-5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-orbitron font-bold text-xs"
+                >
+                  Close Report
+                </button>
+              </div>
+            </div>
+          </div>
+        </GlassPanel>
+      )}
+
+      {/* 3.C. REMOVE / HOLD / REASSIGN AGENT MODAL */}
+      {activeModal === 'removeAgent' && modalData?.agent && (
+        <GlassPanel material="thick" className="w-full max-w-md p-6 border-2 border-crimson/50 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+            <div className="flex items-center gap-2 text-crimson font-orbitron font-bold text-lg">
+              <UserX className="w-5 h-5" />
+              Manage Agent Floor Status
+            </div>
+            <button onClick={closeModal} className="text-zinc-400 hover:text-white"><X className="w-5 h-5" /></button>
+          </div>
+
+          <div className="space-y-4 font-inter text-xs">
+            {/* Agent Preview */}
+            <div className="flex items-center gap-3 p-3 rounded-2xl bg-black/60 border border-white/10">
+              <img
+                src={modalData.agent.avatarUrl}
+                alt={modalData.agent.name}
+                className="w-11 h-11 rounded-full object-cover border border-white/20"
+                referrerPolicy="no-referrer"
+              />
+              <div className="min-w-0">
+                <div className="font-orbitron font-bold text-white text-sm truncate">{modalData.agent.name}</div>
+                <div className="text-[11px] text-zinc-400 truncate">{modalData.agent.email}</div>
+                <div className="text-[10px] text-yellow-400 font-orbitron">
+                  Current Team: {teams.find(t => t.teamId === modalData.agent.teamId)?.teamName || modalData.agent.teamId}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Selection Radio */}
+            <div className="space-y-2">
+              <label className="block text-xs font-orbitron text-zinc-300">Select Management Action:</label>
+
+              {/* Option 1: Hold / Coaching */}
+              <label
+                onClick={() => setRemoveActionChoice('hold')}
+                className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                  removeActionChoice === 'hold' ? 'bg-amber-500/20 border-amber-400 text-amber-200' : 'bg-black/40 border-white/10 text-zinc-400'
+                }`}
+              >
+                <div>
+                  <div className="font-orbitron font-bold text-xs text-white">Place Pod on Floor Hold</div>
+                  <div className="text-[11px] text-zinc-400">Temporarily freeze break access for 1-on-1 meeting or audit.</div>
+                </div>
+                <input type="radio" name="removeChoice" checked={removeActionChoice === 'hold'} onChange={() => {}} className="accent-amber-400" />
+              </label>
+
+              {/* Option 2: Reassign Team */}
+              <label
+                onClick={() => setRemoveActionChoice('reassign')}
+                className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                  removeActionChoice === 'reassign' ? 'bg-cyan/20 border-cyan text-cyan' : 'bg-black/40 border-white/10 text-zinc-400'
+                }`}
+              >
+                <div>
+                  <div className="font-orbitron font-bold text-xs text-white">Reassign to Another Team</div>
+                  <div className="text-[11px] text-zinc-400">Transfer agent pod seamlessly to a different floor pod group.</div>
+                </div>
+                <input type="radio" name="removeChoice" checked={removeActionChoice === 'reassign'} onChange={() => {}} className="accent-cyan" />
+              </label>
+
+              {/* Option 3: Permanently Remove */}
+              <label
+                onClick={() => setRemoveActionChoice('delete')}
+                className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                  removeActionChoice === 'delete' ? 'bg-crimson/20 border-crimson text-red-300' : 'bg-black/40 border-white/10 text-zinc-400'
+                }`}
+              >
+                <div>
+                  <div className="font-orbitron font-bold text-xs text-red-400">Delete Pod from Active Floor</div>
+                  <div className="text-[11px] text-zinc-400">Remove agent pod from active floor display.</div>
+                </div>
+                <input type="radio" name="removeChoice" checked={removeActionChoice === 'delete'} onChange={() => {}} className="accent-crimson" />
+              </label>
+            </div>
+
+            {/* Secondary Option: Reassign Destination */}
+            {removeActionChoice === 'reassign' && (
+              <div>
+                <label className="block text-xs font-orbitron text-zinc-300 mb-1">Select Destination Team *</label>
+                <select
+                  value={reassignTeamChoice || modalData.agent.teamId}
+                  onChange={e => setReassignTeamChoice(e.target.value)}
+                  className="w-full bg-black/80 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-none font-orbitron"
+                >
+                  {teams.map(t => (
+                    <option key={t.teamId} value={t.teamId}>
+                      {t.teamName} ({t.agentCount || 0} agents)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Modal Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button onClick={closeModal} className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-orbitron">
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (removeActionChoice === 'hold') {
+                    toggleBlockAgent(modalData.agent.email, modalData.agent.isBlocked ? undefined : 'Floor Supervisor Hold');
+                    closeModal();
+                  } else if (removeActionChoice === 'reassign') {
+                    const targetTeam = reassignTeamChoice || teams.find(t => t.teamId !== modalData.agent.teamId)?.teamId;
+                    if (targetTeam) {
+                      reassignAgentTeam(modalData.agent.email, targetTeam);
+                    }
+                    closeModal();
+                  } else if (removeActionChoice === 'delete') {
+                    removeAgentPod(modalData.agent.email);
+                    closeModal();
+                  }
+                }}
+                className="px-6 py-2 rounded-xl bg-crimson hover:bg-red-600 text-white font-orbitron font-bold text-xs shadow-lg"
+              >
+                Confirm Action
               </button>
             </div>
           </div>
@@ -1650,6 +2128,92 @@ export const ModalManager: React.FC = () => {
         isOpen={activeModal === 'systemAdmin' || activeModal === 'systemManagement'}
         onClose={closeModal}
       />
+
+      {/* Keyboard Shortcuts Overlay Modal */}
+      <KeyboardShortcutsModal
+        isOpen={activeModal === 'shortcuts'}
+        onClose={closeModal}
+      />
+
+      {/* Dedicated Agent Shift Note Modal */}
+      {activeModal === 'shiftNote' && modalData?.agent && (
+        <GlassPanel material="thick" className="w-full max-w-md p-6 border-2 border-yellow-400/40 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+            <div className="flex items-center gap-2 text-yellow-400 font-orbitron font-bold text-base">
+              <FileText className="w-5 h-5 text-yellow-400" />
+              <span>Shift Note: {modalData.agent.name}</span>
+            </div>
+            <button onClick={closeModal} className="text-zinc-400 hover:text-white cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-xs text-zinc-400 font-inter">
+              Log a short, context-relevant update for this shift. Appears in the Supervisor Dashboard and team floor pod.
+            </p>
+
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'Taking late meal break',
+                'On VIP client escalation',
+                'Assisting team lead',
+                'Technical issue / IT ticket',
+                'Backlog processing queue',
+              ].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setAgentShiftNoteText(preset)}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-[11px] text-zinc-300 transition-colors"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <label className="block text-xs font-orbitron text-zinc-300 mb-1.5">Context Update</label>
+              <textarea
+                value={agentShiftNoteText}
+                onChange={(e) => setAgentShiftNoteText(e.target.value)}
+                placeholder="Type update here..."
+                rows={3}
+                maxLength={200}
+                className="w-full bg-black/80 border border-white/20 rounded-xl p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-yellow-400 resize-none font-inter"
+              />
+              <div className="text-[10px] text-zinc-500 text-right mt-1">
+                {agentShiftNoteText.length}/200 characters
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-orbitron hover:bg-zinc-700 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateUserProfile(modalData.agent.email, {
+                    shiftNote: agentShiftNoteText.trim(),
+                    shiftNoteUpdatedAt: Date.now(),
+                    shiftNoteAuthor: currentUser?.name || 'Agent',
+                  });
+                  playSound('bonus');
+                  closeModal();
+                }}
+                className="px-5 py-2 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-black text-xs font-orbitron font-bold shadow-lg transition-transform hover:scale-105 cursor-pointer"
+              >
+                Save Shift Note
+              </button>
+            </div>
+          </div>
+        </GlassPanel>
+      )}
     </div>
   );
 };

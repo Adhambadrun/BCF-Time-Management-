@@ -60,6 +60,8 @@ export const SystemAdminModal: React.FC<SystemAdminModalProps> = ({ isOpen, onCl
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamSupervisor, setNewTeamSupervisor] = useState('');
   const [newTeamColor, setNewTeamColor] = useState('#FFD700');
+  const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
 
   // Track pending edits per user before saving: { [email]: { role, teamId, dirty, saved } }
   const [userEdits, setUserEdits] = useState<Record<string, { role: UserRole; teamId: string; dirty?: boolean; saved?: boolean }>>({});
@@ -545,6 +547,20 @@ export const SystemAdminModal: React.FC<SystemAdminModalProps> = ({ isOpen, onCl
                           <span className="text-xs text-zinc-400 font-inter">
                             {sup ? sup.name : 'No supervisor'} · {memberCount} {memberCount === 1 ? 'member' : 'members'}
                           </span>
+                          {teams.length > 1 && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTeamToDelete(tm);
+                                setDeleteConfirmationText('');
+                                playSound('warning');
+                              }}
+                              className="p-1.5 rounded-lg bg-crimson/20 hover:bg-crimson/30 text-crimson transition-colors"
+                              title={`Dissolve ${tm.teamName}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -559,6 +575,68 @@ export const SystemAdminModal: React.FC<SystemAdminModalProps> = ({ isOpen, onCl
           </div>
         </GlassPanel>
       </motion.div>
+
+      {/* TEXT CONFIRMATION MODAL FOR DESTRUCTIVE TEAM DELETION */}
+      <AnimatePresence>
+        {teamToDelete && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-md p-6 rounded-3xl bg-zinc-950 border border-crimson/50 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-crimson/20 border border-crimson/40 text-crimson flex items-center justify-center">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-orbitron font-extrabold text-base text-zinc-100 uppercase">
+                    Dissolve Team {teamToDelete.teamName}?
+                  </h3>
+                  <p className="text-xs text-zinc-400 font-inter mt-0.5">
+                    This will reassign all active members to the fallback team and remove this team.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <label className="block text-xs font-inter text-zinc-300">
+                  Type <span className="font-mono font-bold text-crimson">DELETE</span> to confirm:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmationText}
+                  onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                  placeholder="DELETE"
+                  className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-white/20 text-xs font-mono text-white placeholder-zinc-600 focus:outline-none focus:border-crimson"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setTeamToDelete(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-orbitron font-semibold text-zinc-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteConfirmationText.trim().toUpperCase() !== 'DELETE'}
+                  onClick={() => {
+                    deleteTeam(teamToDelete.teamId);
+                    setTeamToDelete(null);
+                  }}
+                  className="px-5 py-2 rounded-xl text-xs font-orbitron font-bold bg-crimson hover:bg-red-600 text-white disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(255,0,60,0.4)] transition-all cursor-pointer"
+                >
+                  Confirm Dissolution
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
