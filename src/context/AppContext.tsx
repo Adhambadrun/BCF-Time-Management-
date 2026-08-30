@@ -62,6 +62,11 @@ interface AppContextType {
   activeBreaksCount: number;
   totalTeamBreakMinutes: number;
   
+  // Theme & Appearance Persistence
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
+  
   // Modals / Panels
   activeModal: string | null;
   modalData: any;
@@ -84,6 +89,7 @@ interface AppContextType {
   loginAs: (email: string) => void;
   impersonateUser: (userOrEmail: User | string) => void;
   startSimulation: (userOrEmail: User | string) => void;
+  handleImpersonateUser: (userOrEmail: User | string) => void;
   loginWithAuth0: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   setUserDirectly: (user: User) => void;
@@ -182,6 +188,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => getStoredData(STORAGE_KEYS.AUDIT_LOGS, []));
   const [shiftNotes, setShiftNotes] = useState<ShiftNote[]>(() => getStoredData(STORAGE_KEYS.NOTES, []));
   const [dailyLogs, setDailyLogs] = useState<ActivityLogExport[]>(() => getStoredData(STORAGE_KEYS.DAILY_LOGS, INITIAL_DAILY_LOGS));
+
+  // Theme state persisted in LocalStorage
+  const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
+    return getStoredData<'dark' | 'light'>(STORAGE_KEYS.THEME, 'dark');
+  });
+
+  const setTheme = useCallback((newTheme: 'dark' | 'light') => {
+    setThemeState(newTheme);
+    setStoredData(STORAGE_KEYS.THEME, newTheme);
+    if (typeof document !== 'undefined') {
+      if (newTheme === 'light') {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+      } else {
+        document.documentElement.classList.remove('light');
+        document.documentElement.classList.add('dark');
+      }
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    playSound('click');
+  }, [theme, setTheme]);
+
+  // Synchronize document theme class on mount and change
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (theme === 'light') {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+      } else {
+        document.documentElement.classList.remove('light');
+        document.documentElement.classList.add('dark');
+      }
+    }
+  }, [theme]);
 
   // Inactivity tracking reference
   const lastLocalInteractionRef = useRef<number>(Date.now());
@@ -1771,6 +1815,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timeRemainingInShift,
         activeBreaksCount,
         totalTeamBreakMinutes,
+        theme,
+        setTheme,
+        toggleTheme,
         activeModal,
         modalData,
         openModal,
@@ -1790,6 +1837,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loginAs,
         impersonateUser,
         startSimulation,
+        handleImpersonateUser: startSimulation,
         loginWithAuth0,
         loginWithGoogle,
         setUserDirectly,

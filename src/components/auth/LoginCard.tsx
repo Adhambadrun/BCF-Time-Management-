@@ -236,7 +236,7 @@ export const LoginCard: React.FC = () => {
                     setDevPin(e.target.value);
                     setDevPinError(false);
                   }}
-                  placeholder="Enter PIN (141220)"
+                  placeholder="Enter Developer PIN"
                   className="w-full bg-black/60 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-400 font-mono"
                   autoFocus
                 />

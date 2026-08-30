@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { GlassPanel } from '../shared/GlassPanel';
 import { RoleGuard } from '../shared/RoleGuard';
-import { Clock, Users, Zap, ChevronDown, MessageSquare, CloudSun, Settings, Award, User, LogOut, Radio, Bell, ArrowRightLeft, ShieldAlert, Search, X, Check, Flame, ShieldOff, Sliders } from 'lucide-react';
+import { Clock, Users, Zap, ChevronDown, MessageSquare, CloudSun, Settings, Award, User, LogOut, Radio, Bell, ArrowRightLeft, ShieldAlert, Search, X, Check, Flame, ShieldOff, Sliders, Sun, Moon } from 'lucide-react';
 import { SNAP, GLIDE } from '../../styles/motion-presets';
 import { motion, AnimatePresence } from 'motion/react';
 import { playSound } from '../../lib/sound';
@@ -28,6 +28,8 @@ export const TopHeader: React.FC = () => {
     openModal,
     logout,
     endRallyMode,
+    theme,
+    toggleTheme,
   } = useApp();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -35,6 +37,12 @@ export const TopHeader: React.FC = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isUserSwitcherOpen, setIsUserSwitcherOpen] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState('');
+  
+  // Real-time Global Search Bar state
+  const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isAdham =
@@ -68,9 +76,30 @@ export const TopHeader: React.FC = () => {
         setIsDropdownOpen(false);
         setIsTeamSelectorOpen(false);
       }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsSearchOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Global search keyboard shortcuts (/ or Ctrl+K / Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === '/' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)
+      ) {
+        e.preventDefault();
+        setIsSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      } else if (e.key === 'Escape') {
+        setIsSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const formatTime = (minutes: number) => {
@@ -78,6 +107,25 @@ export const TopHeader: React.FC = () => {
     const mins = minutes % 60;
     return `${hrs.toString().padStart(2, '0')}h ${mins.toString().padStart(2, '0')}m`;
   };
+
+  // Filter matching items for global real-time search
+  const matchingTeams = globalSearchTerm.trim()
+    ? teams.filter(
+        (t) =>
+          t.teamName.toLowerCase().includes(globalSearchTerm.toLowerCase()) ||
+          t.teamId.toLowerCase().includes(globalSearchTerm.toLowerCase())
+      )
+    : [];
+
+  const matchingUsers = globalSearchTerm.trim()
+    ? users.filter(
+        (u) =>
+          u.name.toLowerCase().includes(globalSearchTerm.toLowerCase()) ||
+          u.email.toLowerCase().includes(globalSearchTerm.toLowerCase()) ||
+          (u.teamId && u.teamId.toLowerCase().includes(globalSearchTerm.toLowerCase())) ||
+          u.role.toLowerCase().includes(globalSearchTerm.toLowerCase())
+      )
+    : [];
 
   return (
     <>
@@ -281,6 +329,171 @@ export const TopHeader: React.FC = () => {
             </AnimatePresence>
           </div>
 
+          {/* REAL-TIME GLOBAL SEARCH BAR (Navigate to pods, teams, agents) */}
+          <div className="relative hidden md:flex items-center" ref={searchContainerRef}>
+            <div
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 ${
+                isSearchOpen || globalSearchTerm
+                  ? 'w-64 lg:w-72 bg-zinc-900/90 border-yellow-400/60 shadow-[0_0_15px_rgba(255,215,0,0.2)]'
+                  : 'w-48 lg:w-56 bg-zinc-900/40 border-white/10 hover:border-white/25 hover:bg-zinc-900/60'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={globalSearchTerm}
+                onFocus={() => setIsSearchOpen(true)}
+                onChange={(e) => {
+                  setGlobalSearchTerm(e.target.value);
+                  if (!isSearchOpen) setIsSearchOpen(true);
+                }}
+                placeholder="Search pods, agents, teams..."
+                className="w-full bg-transparent text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none font-inter"
+              />
+              {globalSearchTerm ? (
+                <button
+                  onClick={() => {
+                    setGlobalSearchTerm('');
+                    setIsSearchOpen(false);
+                  }}
+                  className="p-0.5 rounded-full text-zinc-400 hover:text-white"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              ) : (
+                <kbd className="hidden lg:inline-block px-1.5 py-0.5 text-[9px] font-mono text-zinc-500 bg-white/5 border border-white/10 rounded">
+                  /
+                </kbd>
+              )}
+            </div>
+
+            {/* Live Search Autocomplete Dropdown */}
+            <AnimatePresence>
+              {isSearchOpen && (globalSearchTerm.trim().length > 0 || matchingTeams.length > 0 || matchingUsers.length > 0) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                  transition={SNAP}
+                  className="absolute top-12 left-0 w-80 lg:w-96 z-50 max-h-96 overflow-y-auto"
+                >
+                  <GlassPanel material="thick" className="p-3 shadow-2xl border border-yellow-400/40 space-y-3 bg-zinc-950/95">
+                    {/* Matching Teams */}
+                    {matchingTeams.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-orbitron font-bold text-yellow-400 uppercase tracking-wider px-1">
+                          Team Pods ({matchingTeams.length})
+                        </div>
+                        <div className="space-y-1">
+                          {matchingTeams.map((t) => (
+                            <button
+                              key={t.teamId}
+                              onClick={() => {
+                                setActiveTeamId(t.teamId);
+                                setIsSearchOpen(false);
+                                setGlobalSearchTerm('');
+                                playSound('click');
+                              }}
+                              className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-yellow-400/10 border border-transparent hover:border-yellow-400/30 text-left transition-all group cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <img
+                                  src={t.teamLogo || '/logo.png'}
+                                  alt={t.teamName}
+                                  className="w-6 h-6 rounded-full object-cover border border-white/20"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = '/logo.png';
+                                  }}
+                                />
+                                <div>
+                                  <div className="text-xs font-semibold text-zinc-100 group-hover:text-yellow-300">
+                                    {t.teamName}
+                                  </div>
+                                  <div className="text-[10px] text-zinc-400">
+                                    {t.agentCount} Agents · Sup: {t.supervisorEmail || 'None'}
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="text-[9px] font-orbitron px-2 py-0.5 rounded bg-yellow-400/20 text-yellow-300 font-bold">
+                                Switch Pod
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Matching Team Members & Agents */}
+                    {matchingUsers.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-orbitron font-bold text-cyan uppercase tracking-wider px-1">
+                          Agents & Team Members ({matchingUsers.length})
+                        </div>
+                        <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                          {matchingUsers.slice(0, 10).map((u) => (
+                            <button
+                              key={u.id}
+                              onClick={() => {
+                                if (u.teamId) {
+                                  setActiveTeamId(u.teamId);
+                                }
+                                openModal('agentDetail', u);
+                                setIsSearchOpen(false);
+                                setGlobalSearchTerm('');
+                                playSound('click');
+                              }}
+                              className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-white/10 border border-transparent hover:border-white/10 text-left transition-all group cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <img
+                                  src={u.avatarUrl}
+                                  alt={u.name}
+                                  className="w-7 h-7 rounded-full object-cover border border-white/20 shrink-0"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="truncate">
+                                  <div className="text-xs font-semibold text-zinc-100 group-hover:text-white truncate">
+                                    {u.name}
+                                  </div>
+                                  <div className="text-[10px] text-zinc-400 truncate">
+                                    {u.email}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-0.5 shrink-0 ml-2">
+                                <span className={`text-[8px] font-orbitron uppercase px-1.5 py-0.2 rounded font-bold ${
+                                  u.role === 'developer'
+                                    ? 'bg-purple-500/20 text-purple-300'
+                                    : u.role === 'supervisor'
+                                    ? 'bg-cyan/20 text-cyan'
+                                    : u.role === 'admin'
+                                    ? 'bg-amber-400/20 text-amber-300'
+                                    : 'bg-emerald-500/20 text-emerald-300'
+                                }`}>
+                                  {u.role}
+                                </span>
+                                <span className="text-[8px] text-zinc-400 font-mono">
+                                  {u.teamId?.toUpperCase()}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {matchingTeams.length === 0 && matchingUsers.length === 0 && (
+                      <div className="p-3 text-center text-xs text-zinc-500">
+                        No matching pods or agents found.
+                      </div>
+                    )}
+                  </GlassPanel>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* CENTER: Capacity Indicator (Liquid Bar) */}
           <div className="hidden lg:flex flex-col items-center justify-center min-w-[170px]">
             <div className="flex items-center gap-1.5 text-zinc-400">
@@ -356,6 +569,19 @@ export const TopHeader: React.FC = () => {
             >
               <MessageSquare className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-crimson shadow-[0_0_8px_#FF003C]" />
+            </button>
+
+            {/* Theme Toggle (Dark / Light Mode) */}
+            <button
+              onClick={() => toggleTheme()}
+              title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Theme`}
+              className="p-2.5 rounded-full hover:bg-zinc-800/70 border border-white/10 text-yellow-400 hover:text-yellow-300 transition-all hover:scale-105 cursor-pointer bg-white/[0.03]"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-5 h-5 transition-transform hover:rotate-45" />
+              ) : (
+                <Moon className="w-5 h-5 text-indigo-400 transition-transform hover:-rotate-12" />
+              )}
             </button>
 
             {/* Supervisor Handover Notes Shortcut */}
@@ -486,6 +712,26 @@ export const TopHeader: React.FC = () => {
                       >
                         <User className="w-4 h-4 text-cyan" />
                         My Profile & Goals
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          toggleTheme();
+                          playSound('click');
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-zinc-800/70 text-xs font-inter text-zinc-200 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {theme === 'dark' ? (
+                            <Sun className="w-4 h-4 text-yellow-400" />
+                          ) : (
+                            <Moon className="w-4 h-4 text-indigo-400" />
+                          )}
+                          <span>Theme Appearance</span>
+                        </div>
+                        <span className="text-[10px] font-orbitron uppercase px-2 py-0.5 rounded bg-white/10 text-yellow-300 font-bold">
+                          {theme.toUpperCase()}
+                        </span>
                       </button>
 
                       <button

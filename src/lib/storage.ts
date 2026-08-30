@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
   DAILY_LOGS: 'bcf_daily_logs_v3',
   ACTIVE_TEAM_FILTER: 'bcf_active_team_filter_v1',
   REAL_USER: 'bcf_real_user_v4',
+  THEME: 'bcf_theme_preference_v1',
 };
 
 export { BCF_TEAMS };

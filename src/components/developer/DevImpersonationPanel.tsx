@@ -84,10 +84,15 @@ export const DevImpersonationPanel: React.FC<DevImpersonationPanelProps> = ({
 
   const supervisors = users.filter((u) => u.role === 'supervisor');
 
-  const handleSimulate = (user: User) => {
+  const handleImpersonateUser = (user: User) => {
     startSimulation(user);
     playSound('bonus');
+    if (onClose) {
+      onClose();
+    }
   };
+
+  const handleSimulate = handleImpersonateUser;
 
   const handleReassignSupervisor = (teamId: string, supervisorEmail: string) => {
     const supUser = users.find((u) => u.email.toLowerCase() === supervisorEmail.toLowerCase());

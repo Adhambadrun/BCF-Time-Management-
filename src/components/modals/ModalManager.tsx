@@ -197,6 +197,9 @@ export const ModalManager: React.FC = () => {
     'systemManagement',
     'shortcuts',
     'shiftNote',
+    'devImpersonation',
+    'impersonate',
+    'simulateAccess',
   ];
 
   const isModalOpen = Boolean(activeModal && KNOWN_MODAL_NAMES.includes(activeModal));

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { GlassPanel } from '../shared/GlassPanel';
-import { X, Settings, Volume2, Sliders, Shield, Palette, Download, Save, Radio, Bell, Play, Check } from 'lucide-react';
+import { X, Settings, Volume2, Sliders, Shield, Palette, Download, Save, Radio, Bell, Play, Check, Sun, Moon } from 'lucide-react';
 import { playSound, setAlertToneTheme, getAlertToneTheme } from '../../lib/sound';
 
 export const SettingsPanel: React.FC = () => {
@@ -13,6 +13,8 @@ export const SettingsPanel: React.FC = () => {
     currentUser,
     updateUserProfile,
     exportDataJSON,
+    theme,
+    setTheme,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'rules' | 'sound' | 'ui' | 'data'>('rules');
@@ -409,6 +411,54 @@ export const SettingsPanel: React.FC = () => {
         {/* TAB 3: UI CUSTOMIZATION */}
         {activeTab === 'ui' && currentUser && (
           <div className="space-y-4 text-xs font-inter">
+            {/* Theme Preference */}
+            <div className="p-4 rounded-2xl bg-black/60 border border-white/10 space-y-3">
+              <div className="font-orbitron font-bold text-sm text-yellow-400">Color Palette & Theme Mode</div>
+              <p className="text-zinc-400">Choose between the signature Obsidian Glass dark theme and High-Contrast Light theme:</p>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTheme('dark');
+                    updateUserProfile(currentUser.email, { themeMode: 'dark' });
+                    playSound('click');
+                  }}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    theme === 'dark'
+                      ? 'bg-yellow-400/15 border-yellow-400 text-yellow-300 shadow-[0_0_15px_rgba(255,215,0,0.2)]'
+                      : 'bg-zinc-900/60 border-white/10 text-zinc-400 hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Moon className="w-4 h-4 text-indigo-400" />
+                    <span className="font-orbitron font-bold text-xs">Obsidian Dark</span>
+                  </div>
+                  {theme === 'dark' && <Check className="w-4 h-4 text-yellow-400" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTheme('light');
+                    updateUserProfile(currentUser.email, { themeMode: 'light' });
+                    playSound('click');
+                  }}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                    theme === 'light'
+                      ? 'bg-yellow-400/15 border-yellow-400 text-yellow-300 shadow-[0_0_15px_rgba(255,215,0,0.2)]'
+                      : 'bg-zinc-900/60 border-white/10 text-zinc-400 hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Sun className="w-4 h-4 text-yellow-400" />
+                    <span className="font-orbitron font-bold text-xs">Daylight High-Contrast</span>
+                  </div>
+                  {theme === 'light' && <Check className="w-4 h-4 text-yellow-400" />}
+                </button>
+              </div>
+            </div>
+
             <div className="p-4 rounded-2xl bg-black/60 border border-white/10 space-y-3">
               <div className="font-orbitron font-bold text-sm text-zinc-200">Accessibility & Visual Fluidity</div>
               
