@@ -10,6 +10,10 @@ import {
   ActivityLogExport,
   BatchActionType,
 } from '../types';
+import {
+  generateCanonicalRosterUsers,
+  generateCanonicalRosterTeams,
+} from '../constants/bcfRoster';
 
 type Listener<T> = (data: T) => void;
 
@@ -25,10 +29,10 @@ interface NeonDbState {
   dailyLogs: ActivityLogExport[];
 }
 
-// In-memory state cache
+// In-memory state cache seeded with canonical roster defaults
 let stateCache: NeonDbState = {
-  users: [],
-  teams: [],
+  users: generateCanonicalRosterUsers(),
+  teams: generateCanonicalRosterTeams(),
   breaks: [],
   wcTracking: {},
   warnings: [],
@@ -177,7 +181,7 @@ async function postNeon(action: string, payload: any) {
 // ----------------------------------------------------
 export function subscribeToFirestoreTeams(callback: (teams: Team[]) => void) {
   teamListeners.add(callback);
-  if (stateCache.teams.length > 0) callback(stateCache.teams);
+  callback(stateCache.teams.length > 0 ? stateCache.teams : generateCanonicalRosterTeams());
   ensurePolling();
   return () => {
     teamListeners.delete(callback);
@@ -186,7 +190,7 @@ export function subscribeToFirestoreTeams(callback: (teams: Team[]) => void) {
 
 export function subscribeToFirestoreUsers(callback: (users: User[]) => void) {
   userListeners.add(callback);
-  if (stateCache.users.length > 0) callback(stateCache.users);
+  callback(stateCache.users.length > 0 ? stateCache.users : generateCanonicalRosterUsers());
   ensurePolling();
   return () => {
     userListeners.delete(callback);

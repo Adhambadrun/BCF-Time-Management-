@@ -15,11 +15,25 @@ const memoryStore = {
 };
 
 export function getNeonSql() {
-  const connectionString =
+  // Check for various environment variable naming patterns (Neon, Vercel, standard PG)
+  let connectionString =
     process.env.DATABASE_URL ||
     process.env.POSTGRES_URL ||
     process.env.DATABASE_URL_UNPOOLED ||
-    'postgresql://neondb_owner:npg_JY98zBEpKxQH@ep-mute-surf-aub8xth6-pooler.c-10.us-east-1.aws.neon.tech/neondb?sslmode=require';
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.POSTGRES_PRISMA_URL;
+
+  if (!connectionString && process.env.PGHOST && process.env.PGUSER && process.env.PGPASSWORD) {
+    const host = process.env.PGHOST;
+    const user = encodeURIComponent(process.env.PGUSER);
+    const pass = encodeURIComponent(process.env.PGPASSWORD);
+    const db = process.env.PGDATABASE || 'neondb';
+    connectionString = `postgresql://${user}:${pass}@${host}/${db}?sslmode=require`;
+  }
+
+  if (!connectionString) {
+    connectionString = 'postgresql://neondb_owner:npg_JY98zBEpKxQH@ep-mute-surf-aub8xth6-pooler.c-10.us-east-1.aws.neon.tech/neondb?sslmode=require';
+  }
 
   return neon(connectionString);
 }
@@ -105,45 +119,42 @@ export async function initNeonTables() {
   }
 }
 
-// 2. Seed Initial Roster if Database is empty
+// 2. Seed and Pre-Populate Initial Teams & Roster Pods
 export async function seedNeonInitialData() {
   try {
     const sql = getNeonSql();
-    const userCountRes = await sql`SELECT COUNT(*)::int as count FROM bcf_users`;
-    const count = userCountRes[0]?.count || 0;
+    console.log('⚡ Pre-populating and ensuring all teams (CAI 1-5) and pods exist in Neon PostgreSQL...');
 
-    if (count === 0) {
-      console.log('⚡ Seeding initial teams and users to Neon PostgreSQL...');
-
-      // Seed teams
-      for (const team of INITIAL_TEAMS) {
-        await sql`
-          INSERT INTO bcf_teams (id, data, updated_at)
-          VALUES (${team.teamId}, ${JSON.stringify(team)}, NOW())
-          ON CONFLICT (id) DO UPDATE SET data = ${JSON.stringify(team)}, updated_at = NOW()
-        `;
-      }
-
-      // Seed users
-      for (const user of INITIAL_USERS) {
-        await sql`
-          INSERT INTO bcf_users (id, email, data, updated_at)
-          VALUES (${user.id}, ${user.email.toLowerCase()}, ${JSON.stringify(user)}, NOW())
-          ON CONFLICT (id) DO UPDATE SET data = ${JSON.stringify(user)}, updated_at = NOW()
-        `;
-      }
-
-      // Seed config
+    // Upsert all canonical teams (CAI 1, CAI 2, CAI 3, CAI 4, CAI 5)
+    for (const team of INITIAL_TEAMS) {
       await sql`
-        INSERT INTO bcf_config (key, data, updated_at)
-        VALUES ('current_shift', ${JSON.stringify(INITIAL_CONFIG)}, NOW())
-        ON CONFLICT (key) DO UPDATE SET data = ${JSON.stringify(INITIAL_CONFIG)}, updated_at = NOW()
+        INSERT INTO bcf_teams (id, data, updated_at)
+        VALUES (${team.teamId}, ${JSON.stringify(team)}, NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          data = EXCLUDED.data,
+          updated_at = NOW()
       `;
-
-      console.log(`✅ Seeded ${INITIAL_TEAMS.length} teams and ${INITIAL_USERS.length} users into Neon`);
     }
+
+    // Upsert all canonical users, supervisors, and agents
+    for (const user of INITIAL_USERS) {
+      await sql`
+        INSERT INTO bcf_users (id, email, data, updated_at)
+        VALUES (${user.id}, ${user.email.toLowerCase()}, ${JSON.stringify(user)}, NOW())
+        ON CONFLICT (id) DO NOTHING
+      `;
+    }
+
+    // Ensure config exists
+    await sql`
+      INSERT INTO bcf_config (key, data, updated_at)
+      VALUES ('current_shift', ${JSON.stringify(INITIAL_CONFIG)}, NOW())
+      ON CONFLICT (key) DO NOTHING
+    `;
+
+    console.log(`✅ Permanently synchronized ${INITIAL_TEAMS.length} teams and ${INITIAL_USERS.length} canonical roster users into Neon`);
   } catch (err) {
-    console.warn('Neon seeding warning (using in-memory data):', err);
+    console.warn('Neon pre-population notice (in-memory mode active):', err);
   }
 }
 
@@ -413,8 +424,8 @@ export async function neonHeartbeat(email: string) {
     await sql`
       UPDATE bcf_users
       SET data = jsonb_set(
-        jsonb_set(data, '{isOnline}', 'true'::jsonb),
-        '{lastSeen}', '"Now"'::jsonb
+        jsonb_set(data, '{isOnline}', to_jsonb(true)),
+        '{lastSeen}', to_jsonb('Now'::text)
       ),
       updated_at = NOW()
       WHERE email = ${lowerEmail} OR id = ${lowerEmail}
@@ -483,12 +494,12 @@ export async function executeNeonBatchAction(
           SET data = jsonb_set(
             jsonb_set(
               jsonb_set(
-                jsonb_set(data, '{status}', '"FLOOR"'::jsonb),
-                '{isBreakAllowed}', 'true'::jsonb
+                jsonb_set(data, '{status}', to_jsonb('FLOOR'::text)),
+                '{isBreakAllowed}', to_jsonb(true)
               ),
-              '{isBlocked}', 'false'::jsonb
+              '{isBlocked}', to_jsonb(false)
             ),
-            '{blockReason}', 'null'::jsonb
+            '{blockReason}', to_jsonb(null::text)
           ),
           updated_at = NOW()
           WHERE email = ${email} OR id = ${email}
@@ -499,12 +510,12 @@ export async function executeNeonBatchAction(
               data = jsonb_set(
                 jsonb_set(
                   jsonb_set(
-                    jsonb_set(data, '{isActive}', 'false'::jsonb),
-                    '{endTime}', ${now}::text::jsonb
+                    jsonb_set(data, '{isActive}', to_jsonb(false)),
+                    '{endTime}', to_jsonb(${now}::bigint)
                   ),
-                  '{isForcedEnded}', 'true'::jsonb
+                  '{isForcedEnded}', to_jsonb(true)
                 ),
-                '{forcedEndBy}', ${JSON.stringify(options?.forcedBy || 'END_OF_SHIFT_CLEANUP')}::jsonb
+                '{forcedEndBy}', to_jsonb(${options?.forcedBy || 'END_OF_SHIFT_CLEANUP'}::text)
               ),
               updated_at = NOW()
           WHERE agent_email = ${email} AND is_active = true
@@ -513,8 +524,8 @@ export async function executeNeonBatchAction(
         await sql`
           UPDATE bcf_users
           SET data = jsonb_set(
-            jsonb_set(data, '{status}', '"FLOOR"'::jsonb),
-            '{isBreakAllowed}', 'true'::jsonb
+            jsonb_set(data, '{status}', to_jsonb('FLOOR'::text)),
+            '{isBreakAllowed}', to_jsonb(true)
           ),
           updated_at = NOW()
           WHERE email = ${email} OR id = ${email}
@@ -525,12 +536,12 @@ export async function executeNeonBatchAction(
               data = jsonb_set(
                 jsonb_set(
                   jsonb_set(
-                    jsonb_set(data, '{isActive}', 'false'::jsonb),
-                    '{endTime}', ${now}::text::jsonb
+                    jsonb_set(data, '{isActive}', to_jsonb(false)),
+                    '{endTime}', to_jsonb(${now}::bigint)
                   ),
-                  '{isForcedEnded}', 'true'::jsonb
+                  '{isForcedEnded}', to_jsonb(true)
                 ),
-                '{forcedEndBy}', ${JSON.stringify(forcedBy)}::jsonb
+                '{forcedEndBy}', to_jsonb(${forcedBy}::text)
               ),
               updated_at = NOW()
           WHERE agent_email = ${email} AND is_active = true
@@ -539,8 +550,8 @@ export async function executeNeonBatchAction(
         await sql`
           UPDATE bcf_users
           SET data = jsonb_set(
-            jsonb_set(data, '{status}', '"HOLD"'::jsonb),
-            '{isBreakAllowed}', 'false'::jsonb
+            jsonb_set(data, '{status}', to_jsonb('HOLD'::text)),
+            '{isBreakAllowed}', to_jsonb(false)
           ),
           updated_at = NOW()
           WHERE email = ${email} OR id = ${email}
@@ -550,10 +561,10 @@ export async function executeNeonBatchAction(
           UPDATE bcf_users
           SET data = jsonb_set(
             jsonb_set(
-              jsonb_set(data, '{status}', '"BLOCKED"'::jsonb),
-              '{isBreakAllowed}', 'false'::jsonb
+              jsonb_set(data, '{status}', to_jsonb('BLOCKED'::text)),
+              '{isBreakAllowed}', to_jsonb(false)
             ),
-            '{isBlocked}', 'true'::jsonb
+            '{isBlocked}', to_jsonb(true)
           ),
           updated_at = NOW()
           WHERE email = ${email} OR id = ${email}
@@ -564,12 +575,12 @@ export async function executeNeonBatchAction(
               data = jsonb_set(
                 jsonb_set(
                   jsonb_set(
-                    jsonb_set(data, '{isActive}', 'false'::jsonb),
-                    '{endTime}', ${now}::text::jsonb
+                    jsonb_set(data, '{isActive}', to_jsonb(false)),
+                    '{endTime}', to_jsonb(${now}::bigint)
                   ),
-                  '{isForcedEnded}', 'true'::jsonb
+                  '{isForcedEnded}', to_jsonb(true)
                 ),
-                '{forcedEndBy}', ${JSON.stringify(options?.forcedBy || 'SUPERVISOR_BATCH_BLOCK')}::jsonb
+                '{forcedEndBy}', to_jsonb(${options?.forcedBy || 'SUPERVISOR_BATCH_BLOCK'}::text)
               ),
               updated_at = NOW()
           WHERE agent_email = ${email} AND is_active = true
@@ -643,10 +654,10 @@ export async function executeNeonTeamBreakLock(
           UPDATE bcf_users
           SET data = jsonb_set(
             jsonb_set(
-              jsonb_set(data, '{isBreakAllowed}', 'false'::jsonb),
-              '{isBlocked}', 'true'::jsonb
+              jsonb_set(data, '{isBreakAllowed}', to_jsonb(false)),
+              '{isBlocked}', to_jsonb(true)
             ),
-            '{status}', '"BLOCKED"'::jsonb
+            '{status}', to_jsonb('BLOCKED'::text)
           ),
           updated_at = NOW()
           WHERE email = ${email}
@@ -657,12 +668,12 @@ export async function executeNeonTeamBreakLock(
               data = jsonb_set(
                 jsonb_set(
                   jsonb_set(
-                    jsonb_set(data, '{isActive}', 'false'::jsonb),
-                    '{endTime}', ${now}::text::jsonb
+                    jsonb_set(data, '{isActive}', to_jsonb(false)),
+                    '{endTime}', to_jsonb(${now}::bigint)
                   ),
-                  '{isForcedEnded}', 'true'::jsonb
+                  '{isForcedEnded}', to_jsonb(true)
                 ),
-                '{forcedEndBy}', ${JSON.stringify(forcedBy)}::jsonb
+                '{forcedEndBy}', to_jsonb(${forcedBy}::text)
               ),
               updated_at = NOW()
           WHERE agent_email = ${email} AND is_active = true
@@ -672,10 +683,10 @@ export async function executeNeonTeamBreakLock(
           UPDATE bcf_users
           SET data = jsonb_set(
             jsonb_set(
-              jsonb_set(data, '{isBreakAllowed}', 'true'::jsonb),
-              '{isBlocked}', 'false'::jsonb
+              jsonb_set(data, '{isBreakAllowed}', to_jsonb(true)),
+              '{isBlocked}', to_jsonb(false)
             ),
-            '{status}', '"FLOOR"'::jsonb
+            '{status}', to_jsonb('FLOOR'::text)
           ),
           updated_at = NOW()
           WHERE email = ${email}

@@ -116,6 +116,47 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Cross-Team Quick Selector Bar */}
+      <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-orbitron text-zinc-300 font-bold uppercase">
+            Active Team Inspection:
+          </span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {teams.map((t) => {
+            const isSelected = t.teamId === activeTeamId;
+            const supUser = users.find(u => u.email.toLowerCase() === t.supervisorEmail?.toLowerCase());
+            const agentCount = users.filter(u => u.teamId === t.teamId && (u.role === 'agent' || u.role === 'independent' || (t.teamId === 'cai-1' && u.email.toLowerCase() === 'dominick@bcflights.com'))).length;
+
+            return (
+              <button
+                key={t.teamId}
+                onClick={() => {
+                  setActiveTeamId(t.teamId);
+                  playSound('click');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-orbitron font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  isSelected
+                    ? 'bg-yellow-400 text-black shadow-[0_0_15px_rgba(255,204,0,0.4)] ring-1 ring-yellow-400 scale-105'
+                    : 'bg-black/40 hover:bg-white/10 text-zinc-300 border border-white/10'
+                }`}
+                title={`Supervisor: ${supUser?.name || t.supervisorEmail} · ${agentCount} agent pods`}
+              >
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: isSelected ? '#000' : t.teamColorAccent || '#FFD700' }}
+                />
+                <span>{t.teamName}</span>
+                <span className={`text-[10px] font-mono px-1 rounded ${isSelected ? 'bg-black/20 text-black font-semibold' : 'bg-white/10 text-zinc-400'}`}>
+                  {agentCount}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* TOP STATS ROW (5 Cards per Part 16) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <GlassPanel material="regular" className="p-4 flex flex-col justify-between">
