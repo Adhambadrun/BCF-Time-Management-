@@ -91,7 +91,7 @@ export const TopHeader: React.FC = () => {
           <div className="flex items-center gap-3">
             <img
               src="/logo.png"
-              alt="BCF Logo"
+              alt="Time Management Logo"
               className="w-11 h-11 md:w-13 md:h-13 object-contain filter drop-shadow-[0_0_10px_rgba(255,215,0,0.45)] transition-transform hover:scale-105"
             />
             <div className="flex flex-col">
@@ -124,7 +124,7 @@ export const TopHeader: React.FC = () => {
               <div className="w-11 h-11 md:w-13 md:h-13 rounded-full overflow-hidden border-2 border-yellow-400/60 shadow-[0_0_15px_rgba(255,215,0,0.3)] transition-transform group-hover:scale-105 bg-black/40">
                 <img
                   src={activeTeam?.teamLogo || '/logo.png'}
-                  alt={activeTeam?.teamName || 'BCF Team'}
+                  alt={activeTeam?.teamName || 'Team Logo'}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
@@ -159,7 +159,7 @@ export const TopHeader: React.FC = () => {
                 )}
               </div>
               <div className="text-[10px] text-zinc-400 font-inter tracking-wide hidden sm:block">
-                BCF Time Management · Floor OS
+                Time Management · Floor OS
               </div>
             </div>
 

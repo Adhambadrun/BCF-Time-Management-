@@ -103,6 +103,11 @@ export async function fetchNeonState(): Promise<NeonDbState | null> {
   }
 }
 
+export async function getNeonState(): Promise<NeonDbState> {
+  const state = await fetchNeonState();
+  return state || stateCache;
+}
+
 function updateCache(data: any): NeonDbState {
   if (!data) return stateCache;
 

@@ -141,7 +141,10 @@ export async function seedNeonInitialData() {
       await sql`
         INSERT INTO bcf_users (id, email, data, updated_at)
         VALUES (${user.id}, ${user.email.toLowerCase()}, ${JSON.stringify(user)}, NOW())
-        ON CONFLICT (id) DO NOTHING
+        ON CONFLICT (email) DO UPDATE SET
+          id = EXCLUDED.id,
+          data = EXCLUDED.data,
+          updated_at = NOW()
       `;
     }
 
@@ -290,8 +293,8 @@ export async function saveNeonRecord(type: string, data: any) {
         await sql`
           INSERT INTO bcf_users (id, email, data, updated_at)
           VALUES (${id}, ${email}, ${jsonStr}, NOW())
-          ON CONFLICT (id) DO UPDATE SET
-            email = ${email},
+          ON CONFLICT (email) DO UPDATE SET
+            id = EXCLUDED.id,
             data = ${jsonStr},
             updated_at = NOW()
         `;

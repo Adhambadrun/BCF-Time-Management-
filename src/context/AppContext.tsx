@@ -1120,7 +1120,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newTeam: Team = {
       teamId: newTeamId,
       teamName: teamData.teamName.toUpperCase(),
-      teamLogo: teamData.teamLogo || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
+      teamLogo: teamData.teamLogo || '/logo.png',
       teamColorAccent: teamData.teamColorAccent || '#00E5FF',
       supervisorEmail: teamData.supervisorEmail || (currentUser?.email || 'admin@bcflights.com'),
       defaultLanguage: teamData.defaultLanguage || 'en',

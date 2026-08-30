@@ -47,12 +47,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GLIDE } from '../../styles/motion-presets';
 
 const EMBLEM_PRESETS = [
+  { label: 'BCF Official Crest', url: '/logo.png' },
   { label: 'Eagle Strike', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80' },
   { label: 'Cyber Lion', url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=150&auto=format&fit=crop&q=80' },
   { label: 'Dragon Crest', url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=150&auto=format&fit=crop&q=80' },
   { label: 'Wolf Pack', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=150&auto=format&fit=crop&q=80' },
   { label: 'Cyber Falcon', url: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=150&auto=format&fit=crop&q=80' },
-  { label: 'Solar Titan', url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=150&auto=format&fit=crop&q=80' },
 ];
 
 const AVATAR_PRESETS = [

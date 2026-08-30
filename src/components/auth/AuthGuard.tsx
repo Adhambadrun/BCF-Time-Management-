@@ -140,7 +140,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
           <div className="w-16 h-16 mx-auto rounded-2xl p-2 bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_0_20px_rgba(255,215,0,0.2)]">
             <img
               src="/logo.png"
-              alt="BCF Logo"
+              alt="Time Management Logo"
               className="object-contain w-full h-full filter drop-shadow-[0_0_6px_rgba(255,215,0,0.4)]"
             />
           </div>

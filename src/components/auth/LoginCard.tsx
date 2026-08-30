@@ -99,13 +99,13 @@ export const LoginCard: React.FC = () => {
           <div className="w-20 h-20 mx-auto rounded-2xl p-3 bg-white/5 border border-white/10 shadow-[0_0_30px_rgba(255,215,0,0.25)] backdrop-blur-md flex items-center justify-center mb-4 transition-transform hover:scale-105">
             <img
               src="/logo.png"
-              alt="BCF Logo"
+              alt="Time Management Logo"
               className="object-contain w-full h-full filter drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]"
             />
           </div>
 
           <h1 className="font-orbitron font-black text-2xl sm:text-3xl text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-yellow-400 to-amber-500 tracking-wider">
-            BCF Time Management
+            Time Management
           </h1>
 
           {/* Jim Rohn Quote */}

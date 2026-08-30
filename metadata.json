@@ -1,6 +1,6 @@
 {
-  "name": "BCF Time Management",
-  "description": "Official BCF Time Management and sales-floor shift break tracking platform.",
+  "name": "Time Management",
+  "description": "Official Time Management and sales-floor shift break tracking platform.",
   "requestFramePermissions": [
     "microphone"
   ],
