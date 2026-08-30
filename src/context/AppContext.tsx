@@ -3,6 +3,7 @@ import { User, Team, BreakRecord, WCTracking, Warning, SNNHeadline, ShiftConfig,
 import { getStoredData, setStoredData, getSessionData, setSessionData, STORAGE_KEYS, INITIAL_USERS, INITIAL_TEAMS, INITIAL_BREAKS, INITIAL_WC_TRACKING, INITIAL_WARNINGS, INITIAL_HEADLINES, INITIAL_CONFIG, INITIAL_DAILY_LOGS } from '../lib/storage';
 import { playSound } from '../lib/sound';
 import { loginWithGooglePopup, logoutFirebaseAuth, isEmailAllowedToLogin } from '../lib/authService';
+import { loginWithAuth0Popup, logoutAuth0, handleAuth0RedirectCallback, getAuth0Config } from '../lib/auth0Service';
 import {
   subscribeToFirestoreBreaks,
   subscribeToFirestoreWCTracking,
@@ -79,6 +80,7 @@ interface AppContextType {
 
   // Actions
   loginAs: (email: string) => void;
+  loginWithAuth0: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   setUserDirectly: (user: User) => void;
   logout: () => void;
@@ -262,6 +264,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubUsers();
       unsubDailyLogs();
     };
+  }, []);
+
+  // Handle Auth0 Universal Login redirect callback if returning from Auth0
+  useEffect(() => {
+    handleAuth0RedirectCallback()
+      .then((user) => {
+        if (user) {
+          setUserDirectly(user);
+          playSound('bonus');
+        }
+      })
+      .catch((err) => {
+        console.warn('Auth0 redirect callback check:', err);
+      });
   }, []);
 
   // Sync to storage
@@ -565,10 +581,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveTeamId(user.teamId);
     }
     playSound('click');
-    addHeadline(`👋 ${user.name} authenticated via Google`, 'info', 'normal');
+    addHeadline(`👋 ${user.name} authenticated via ${user.email}`, 'info', 'normal');
+  };
+
+  const loginWithAuth0 = async () => {
+    try {
+      const user = await loginWithAuth0Popup();
+      if (!isEmailAllowedToLogin(user.email)) {
+        throw new Error(`Access restricted: ${user.email} is not authorized. Only @bcflights.com emails can access the floor.`);
+      }
+      setUserDirectly(user);
+    } catch (err: any) {
+      console.error('Auth0 Sign-in Error:', err);
+      throw err;
+    }
   };
 
   const loginWithGoogle = async () => {
+    const auth0Conf = getAuth0Config();
+    // When Auth0 is configured, use Auth0 as the floor authentication service
+    if (auth0Conf.domain && auth0Conf.clientId) {
+      await loginWithAuth0();
+      return;
+    }
+
     try {
       const user = await loginWithGooglePopup();
       if (!isEmailAllowedToLogin(user.email)) {
@@ -576,12 +612,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       setUserDirectly(user);
     } catch (err: any) {
-      console.error('Google Popup Sign-in Error:', err);
+      console.error('Sign-in Error:', err);
       throw err;
     }
   };
 
   const logout = async () => {
+    try {
+      await logoutAuth0();
+    } catch (e) {
+      // Ignore
+    }
     try {
       await logoutFirebaseAuth();
     } catch (e) {
@@ -1679,6 +1720,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSearchGroundingOpen,
         setIsSearchGroundingOpen,
         loginAs,
+        loginWithAuth0,
         loginWithGoogle,
         setUserDirectly,
         logout,

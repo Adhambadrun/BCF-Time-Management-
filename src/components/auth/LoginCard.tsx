@@ -1,53 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { GlassPanel } from '../shared/GlassPanel';
-import { Loader2, ShieldCheck, AlertCircle, Terminal, KeyRound, X } from 'lucide-react';
-import { initGoogleOneTap } from '../../lib/authService';
+import { Loader2, ShieldCheck, AlertCircle, Terminal, KeyRound, X, Lock } from 'lucide-react';
 import { INITIAL_USERS } from '../../lib/storage';
 import { playSound } from '../../lib/sound';
 
 export const LoginCard: React.FC = () => {
-  const { loginWithGoogle, setUserDirectly } = useApp();
+  const { loginWithAuth0, setUserDirectly } = useApp();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [showDevModal, setShowDevModal] = useState(false);
   const [devPin, setDevPin] = useState('');
   const [devPinError, setDevPinError] = useState(false);
 
-  useEffect(() => {
-    // Automatically trigger Google One Tap on mount for smooth 1-click login
-    initGoogleOneTap(
-      (authenticatedUser) => {
-        setIsAuthenticating(false);
-        setUserDirectly(authenticatedUser);
-      },
-      (err) => {
-        console.warn('Google One Tap suppressed or unavailable:', err);
-      }
-    );
-  }, [setUserDirectly]);
-
-  const handleGoogleClick = async () => {
+  const handleSignIn = async () => {
     setIsAuthenticating(true);
     setAuthError(null);
     try {
-      await loginWithGoogle();
+      await loginWithAuth0();
     } catch (err: any) {
-      const code = err?.code || '';
       const msg = err?.message || '';
-
-      if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
-        setAuthError(
-          'Domain authorization required: Please add "bcflights.vercel.app" to Authorized Domains in Firebase Console > Authentication > Settings > Authorized Domains.'
-        );
-      } else if (code === 'auth/popup-closed-by-user') {
-        setAuthError('Sign-in window was closed before completing authentication.');
-      } else if (code === 'auth/popup-blocked') {
-        setAuthError('Sign-in popup was blocked by browser. Please allow popups for bcflights.vercel.app and retry.');
+      if (msg.includes('Popup window closed') || msg.includes('cancelled')) {
+        setAuthError('Authentication cancelled.');
       } else {
         setAuthError(
-          msg ||
-            'Google Sign-in failed. Please ensure you are using an authorized @bcflights.com email.'
+          msg || 'Authentication failed. Please verify your @bcflights.com account.'
         );
       }
     } finally {
@@ -57,13 +34,14 @@ export const LoginCard: React.FC = () => {
 
   const handleDevUnlock = (e: React.FormEvent) => {
     e.preventDefault();
-    // Developer PIN check (or quick developer bypass)
     const devUser =
       INITIAL_USERS.find((u) => u.role === 'developer') || INITIAL_USERS[0];
-    if (devPin === '777' || devPin === 'admin' || devPin === 'bcf' || devPin === '') {
+    if (devPin.trim() === '141220') {
       playSound('bonus');
       setUserDirectly(devUser);
       setShowDevModal(false);
+      setDevPin('');
+      setDevPinError(false);
     } else {
       setDevPinError(true);
       playSound('click');
@@ -108,40 +86,23 @@ export const LoginCard: React.FC = () => {
           </div>
         </div>
 
-        {/* Single, High-Visibility Sign-In Button */}
+        {/* Single, High-Visibility Sign-In Button with Auth0 */}
         <div className="space-y-3 pt-2">
           <button
-            id="google-signin-primary-btn"
-            onClick={handleGoogleClick}
+            id="auth-signin-primary-btn"
+            onClick={handleSignIn}
             disabled={isAuthenticating}
             className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl bg-gradient-to-r from-white via-zinc-50 to-zinc-100 hover:from-white hover:to-zinc-200 text-zinc-950 font-inter font-bold text-sm sm:text-base shadow-[0_0_35px_rgba(255,215,0,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer border-2 border-yellow-400/40"
           >
             {isAuthenticating ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin text-zinc-800" />
-                <span>Authenticating with Google...</span>
+                <span>Authenticating with @bcflights.com...</span>
               </>
             ) : (
               <>
-                {/* Google Logo SVG */}
-                <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-                  />
-                </svg>
+                {/* Auth Shield Icon */}
+                <Lock className="w-5 h-5 text-amber-600 flex-shrink-0" />
                 <span>Sign in with @bcflights.com</span>
               </>
             )}
@@ -173,7 +134,7 @@ export const LoginCard: React.FC = () => {
         </div>
       </GlassPanel>
 
-      {/* Unobtrusive Developer Access Modal */}
+      {/* Secure Developer Access Modal */}
       {showDevModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
           <GlassPanel
@@ -181,8 +142,12 @@ export const LoginCard: React.FC = () => {
             className="w-full max-w-sm p-5 border border-yellow-400/40 shadow-2xl relative space-y-4"
           >
             <button
-              onClick={() => setShowDevModal(false)}
-              className="absolute top-3 right-3 text-zinc-400 hover:text-white p-1"
+              onClick={() => {
+                setShowDevModal(false);
+                setDevPin('');
+                setDevPinError(false);
+              }}
+              className="absolute top-3 right-3 text-zinc-400 hover:text-white p-1 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -193,7 +158,7 @@ export const LoginCard: React.FC = () => {
             </div>
 
             <p className="text-xs text-zinc-400 font-inter">
-              Authenticate directly into Adham Badraan's Developer Superuser Profile.
+              Security verification required to access the developer console.
             </p>
 
             <form onSubmit={handleDevUnlock} className="space-y-3">
@@ -205,11 +170,12 @@ export const LoginCard: React.FC = () => {
                     setDevPin(e.target.value);
                     setDevPinError(false);
                   }}
-                  placeholder="Enter PIN (Default: 777 or leave blank)"
+                  placeholder="Enter PIN"
                   className="w-full bg-black/60 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-400 font-mono"
+                  autoFocus
                 />
                 {devPinError && (
-                  <p className="text-[10px] text-red-400 mt-1">Invalid PIN. Try 777.</p>
+                  <p className="text-[10px] text-red-400 mt-1">Invalid PIN.</p>
                 )}
               </div>
 
@@ -222,7 +188,11 @@ export const LoginCard: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowDevModal(false)}
+                  onClick={() => {
+                    setShowDevModal(false);
+                    setDevPin('');
+                    setDevPinError(false);
+                  }}
                   className="py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-orbitron cursor-pointer"
                 >
                   Cancel
