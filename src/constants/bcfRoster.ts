@@ -92,3 +92,30 @@ export const BCF_TEAMS: BCFRosterTeam[] = [
     ]
   }
 ];
+
+export function getSupervisorTeam(email: string): BCFRosterTeam | undefined {
+  if (!email) return undefined;
+  const lower = email.trim().toLowerCase();
+  return BCF_TEAMS.find(t => t.supervisor.email.toLowerCase() === lower);
+}
+
+export function getAgentTeam(email: string): BCFRosterTeam | undefined {
+  if (!email) return undefined;
+  const lower = email.trim().toLowerCase();
+  return BCF_TEAMS.find(t =>
+    t.supervisor.email.toLowerCase() === lower ||
+    t.agents.some(a => a.email.toLowerCase() === lower)
+  );
+}
+
+export function getTeamById(teamId: string): BCFRosterTeam | undefined {
+  if (!teamId) return undefined;
+  return BCF_TEAMS.find(t => t.teamId.toLowerCase() === teamId.toLowerCase());
+}
+
+export function isSupervisorEmail(email: string): boolean {
+  if (!email) return false;
+  const lower = email.trim().toLowerCase();
+  return BCF_TEAMS.some(t => t.supervisor.email.toLowerCase() === lower);
+}
+

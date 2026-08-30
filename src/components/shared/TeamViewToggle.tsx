@@ -59,12 +59,23 @@ export const TeamViewToggle: React.FC<TeamViewToggleProps> = ({
 
   // Current active team object (or custom 'All' meta)
   const currentTeamObj = teams.find(t => t.teamId === activeTeam) || teams[0];
-  const totalFloorAgents = users.filter(u => u.role === 'agent').length;
+  const totalFloorAgents = users.filter(
+    u =>
+      u.role === 'agent' ||
+      u.role === 'independent' ||
+      (u.teamId === 'cai-1' && u.email.toLowerCase() === 'dominick@bcflights.com')
+  ).length;
   const totalActiveBreaks = breaks.filter(b => b.isActive).length;
 
   const currentTeamAgentsCount = isAll
     ? totalFloorAgents
-    : users.filter(u => u.teamId === activeTeam && u.role === 'agent').length;
+    : users.filter(
+        u =>
+          u.teamId === activeTeam &&
+          (u.role === 'agent' ||
+            u.role === 'independent' ||
+            (activeTeam === 'cai-1' && u.email.toLowerCase() === 'dominick@bcflights.com'))
+      ).length;
 
   const currentTeamBreakersCount = isAll
     ? totalActiveBreaks

@@ -42,6 +42,7 @@ import { playSound } from '../../lib/sound';
 import { BreakType, UserRole } from '../../types';
 import { SystemAdminModal } from './SystemAdminModal';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
+import { DevImpersonationPanel } from '../developer/DevImpersonationPanel';
 import { motion, AnimatePresence } from 'motion/react';
 import { GLIDE } from '../../styles/motion-presets';
 
@@ -2230,6 +2231,13 @@ export const ModalManager: React.FC = () => {
             </div>
           </div>
         </GlassPanel>
+      )}
+
+      {/* Dev / Admin Simulation & Team Matrix Panel */}
+      {(activeModal === 'devImpersonation' || activeModal === 'impersonate' || activeModal === 'simulateAccess') && (
+        <div className="w-full max-w-5xl">
+          <DevImpersonationPanel isOpen={true} onClose={closeModal} />
+        </div>
       )}
           </motion.div>
         </motion.div>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { User, Team, BreakRecord, WCTracking, Warning, SNNHeadline, ShiftConfig, ChatMessage, Broadcast, AuditLogEntry, ShiftNote, BreakType, UserRole, ActivityLogExport, BatchActionType } from '../types';
 import { getStoredData, setStoredData, getSessionData, setSessionData, STORAGE_KEYS, INITIAL_USERS, INITIAL_TEAMS, INITIAL_BREAKS, INITIAL_WC_TRACKING, INITIAL_WARNINGS, INITIAL_HEADLINES, INITIAL_CONFIG, INITIAL_DAILY_LOGS } from '../lib/storage';
+import { BCF_TEAMS, getSupervisorTeam, getAgentTeam, getTeamById, isSupervisorEmail } from '../constants/bcfRoster';
 import { playSound } from '../lib/sound';
 import { loginWithGooglePopup, logoutFirebaseAuth, isEmailAllowedToLogin } from '../lib/authService';
 import { loginWithAuth0Popup, logoutAuth0, handleAuth0RedirectCallback, getAuth0Config } from '../lib/auth0Service';
@@ -132,7 +133,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = getStoredData<User | null>(STORAGE_KEYS.CURRENT_USER, null);
     if (saved && saved.email && isEmailAllowedToLogin(saved.email)) {
       const match = INITIAL_USERS.find(u => u.email.toLowerCase() === saved.email.toLowerCase());
-      return match ? { ...match, ...saved } : saved;
+      const baseUser = match ? { ...match, ...saved } : saved;
+      const supTeam = getSupervisorTeam(baseUser.email);
+      if (supTeam) {
+        return { ...baseUser, role: 'supervisor', teamId: supTeam.teamId };
+      }
+      return baseUser;
     }
     return null;
   });
@@ -141,7 +147,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = getStoredData<User | null>(STORAGE_KEYS.REAL_USER, null);
     if (saved && saved.email && isEmailAllowedToLogin(saved.email)) {
       const match = INITIAL_USERS.find(u => u.email.toLowerCase() === saved.email.toLowerCase());
-      return match ? { ...match, ...saved } : saved;
+      const baseUser = match ? { ...match, ...saved } : saved;
+      const supTeam = getSupervisorTeam(baseUser.email);
+      if (supTeam) {
+        return { ...baseUser, role: 'supervisor', teamId: supTeam.teamId };
+      }
+      return baseUser;
     }
     return null;
   });
@@ -503,13 +514,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setModalData(null);
   };
 
+  const addHeadline = useCallback((text: string, category: SNNHeadline['category'] = 'break', priority: SNNHeadline['priority'] = 'normal') => {
+    const newHeadline: SNNHeadline = {
+      headlineId: 'hl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      headlineText: text,
+      category,
+      priority,
+      timestamp: Date.now(),
+      visibility: 'all',
+    };
+    setHeadlines(prev => [newHeadline, ...prev.slice(0, 30)]);
+    firestoreSaveHeadline(newHeadline);
+  }, []);
+
   const loginAs = (email: string) => {
     if (!isEmailAllowedToLogin(email)) {
       addHeadline(`🚫 Access restricted: ${email} is not an authorized @bcflights.com account`, 'warning', 'urgent');
       return;
     }
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (user) {
+    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase()) ||
+                      INITIAL_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (foundUser) {
+      const supTeam = getSupervisorTeam(foundUser.email);
+      const user = supTeam
+        ? { ...foundUser, role: 'supervisor' as UserRole, teamId: supTeam.teamId }
+        : foundUser;
+
       if (!realUser && currentUser) {
         setRealUser(currentUser);
       } else if (!realUser) {
@@ -517,7 +547,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setRealUser(defaultDev);
       }
       setCurrentUser(user);
-      if (user.role !== 'admin' && user.role !== 'developer') {
+      if (user.role === 'supervisor' || user.role === 'agent') {
         setActiveTeamId(user.teamId);
       }
       playSound('click');
@@ -546,40 +576,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addHeadline = useCallback((text: string, category: SNNHeadline['category'] = 'break', priority: SNNHeadline['priority'] = 'normal') => {
-    const newHeadline: SNNHeadline = {
-      headlineId: 'hl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-      headlineText: text,
-      category,
-      priority,
-      timestamp: Date.now(),
-      visibility: 'all',
-    };
-    setHeadlines(prev => [newHeadline, ...prev.slice(0, 30)]);
-    firestoreSaveHeadline(newHeadline);
-  }, []);
-
   const setUserDirectly = useCallback((user: User) => {
     if (!isEmailAllowedToLogin(user.email)) {
       addHeadline(`🚫 Access denied: ${user.email} does not belong to @bcflights.com domain`, 'warning', 'urgent');
       return;
     }
+    const supTeam = getSupervisorTeam(user.email);
+    const normalizedUser: User = supTeam
+      ? { ...user, role: 'supervisor', teamId: supTeam.teamId }
+      : user;
+
     setUsers(prev => {
-      const idx = prev.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase() || u.id === user.id);
+      const idx = prev.findIndex(u => u.email.toLowerCase() === normalizedUser.email.toLowerCase() || u.id === normalizedUser.id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], ...user };
+        next[idx] = { ...next[idx], ...normalizedUser };
         return next;
       }
-      return [user, ...prev];
+      return [normalizedUser, ...prev];
     });
-    setCurrentUser(user);
-    setRealUser(user);
-    if (user.role !== 'admin' && user.role !== 'developer') {
-      setActiveTeamId(user.teamId);
+    setCurrentUser(normalizedUser);
+    setRealUser(normalizedUser);
+    if (normalizedUser.role === 'supervisor' || normalizedUser.role === 'agent') {
+      setActiveTeamId(normalizedUser.teamId);
     }
     playSound('click');
-    addHeadline(`👋 ${user.name} authenticated via ${user.email}`, 'info', 'normal');
+    addHeadline(`👋 ${normalizedUser.name} authenticated via ${normalizedUser.email}`, 'info', 'normal');
   }, [addHeadline]);
 
   const loginWithAuth0 = async () => {

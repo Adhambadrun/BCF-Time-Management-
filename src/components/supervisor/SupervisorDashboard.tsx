@@ -28,7 +28,13 @@ export const SupervisorDashboard: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
 
   const team = teams.find(t => t.teamId === activeTeamId) || teams[0];
-  const teamAgents = users.filter(u => u.teamId === activeTeamId && u.role === 'agent');
+  const teamAgents = users.filter(
+    u =>
+      u.teamId === activeTeamId &&
+      (u.role === 'agent' ||
+        u.role === 'independent' ||
+        (activeTeamId === 'cai-1' && u.email.toLowerCase() === 'dominick@bcflights.com'))
+  );
   const teamBreaks = breaks.filter(b => b.teamId === activeTeamId);
   const teamWarnings = warnings.filter(w => w.teamId === activeTeamId);
   const teamNotes = shiftNotes.filter(n => n.teamId === activeTeamId);

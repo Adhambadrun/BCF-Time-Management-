@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { GlassPanel } from '../shared/GlassPanel';
-import { Zap, Terminal, ShieldAlert, Sliders, RefreshCw, Download, Database, Flame, X, Check, ToggleLeft, ToggleRight, Radio } from 'lucide-react';
+import { Zap, Terminal, ShieldAlert, Sliders, RefreshCw, Download, Database, Flame, X, Check, ToggleLeft, ToggleRight, Radio, ArrowRightLeft } from 'lucide-react';
 import { playSound } from '../../lib/sound';
+import { DevImpersonationPanel } from './DevImpersonationPanel';
 
 export const GodModePanel: React.FC = () => {
   const {
@@ -26,7 +27,7 @@ export const GodModePanel: React.FC = () => {
     openModal,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'actions' | 'toggles'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'impersonation' | 'logs' | 'actions' | 'toggles'>('overview');
   const [rallyDuration, setRallyDuration] = useState(10);
   const [rallyMsg, setRallyMsg] = useState('ALL HANDS ON DECK! Close the pending airline leads now!');
 
@@ -65,7 +66,7 @@ export const GodModePanel: React.FC = () => {
         </div>
 
         {/* NAVIGATION TABS */}
-        <div className="flex items-center gap-2 border-b border-white/10 py-3 text-xs font-orbitron">
+        <div className="flex items-center gap-2 border-b border-white/10 py-3 text-xs font-orbitron flex-wrap">
           <button
             onClick={() => setActiveTab('overview')}
             className={`px-4 py-2 rounded-xl transition-all ${
@@ -75,6 +76,17 @@ export const GodModePanel: React.FC = () => {
             }`}
           >
             System Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('impersonation')}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeTab === 'impersonation'
+                ? 'bg-yellow-400 text-black font-extrabold shadow-lg'
+                : 'hover:bg-zinc-800 text-zinc-300'
+            }`}
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5" />
+            Simulate Access & Teams
           </button>
           <button
             onClick={() => setActiveTab('logs')}
@@ -110,6 +122,13 @@ export const GodModePanel: React.FC = () => {
 
         {/* TAB CONTENTS */}
         <div className="flex-1 overflow-y-auto py-4">
+          {/* TAB: SIMULATE ACCESS & TEAMS */}
+          {activeTab === 'impersonation' && (
+            <div className="w-full">
+              <DevImpersonationPanel isOpen={true} />
+            </div>
+          )}
+
           {/* TAB 1: SYSTEM OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-6">

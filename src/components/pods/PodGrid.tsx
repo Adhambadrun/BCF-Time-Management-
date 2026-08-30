@@ -56,7 +56,13 @@ export const PodGrid: React.FC<PodGridProps> = ({ selectedTeamId: propSelectedTe
 
   // All agent pods across the company
   const allFloorAgents = useMemo(
-    () => users.filter(u => u.role === 'agent'),
+    () =>
+      users.filter(
+        u =>
+          u.role === 'agent' ||
+          u.role === 'independent' ||
+          (u.teamId === 'cai-1' && u.email.toLowerCase() === 'dominick@bcflights.com')
+      ),
     [users]
   );
 
@@ -71,7 +77,13 @@ export const PodGrid: React.FC<PodGridProps> = ({ selectedTeamId: propSelectedTe
     if (isAllTeamsView) {
       return allFloorAgents;
     }
-    return users.filter(u => u.teamId === effectiveTeamId && u.role === 'agent');
+    return users.filter(
+      u =>
+        u.teamId === effectiveTeamId &&
+        (u.role === 'agent' ||
+          u.role === 'independent' ||
+          (effectiveTeamId === 'cai-1' && u.email.toLowerCase() === 'dominick@bcflights.com'))
+    );
   }, [isAllTeamsView, allFloorAgents, users, effectiveTeamId]);
 
   // Helper to sort agents by status (On Break -> On Hold -> Blocked -> On Floor -> Offline)
