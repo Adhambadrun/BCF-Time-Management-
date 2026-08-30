@@ -129,22 +129,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => getStoredData(STORAGE_KEYS.USERS, INITIAL_USERS));
   const [teams, setTeams] = useState<Team[]>(() => getStoredData(STORAGE_KEYS.TEAMS, INITIAL_TEAMS));
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        // Clear any old auto-logged-in dev sessions from previous versions
+        localStorage.removeItem('bcf_auth_current_user_v3');
+        localStorage.removeItem('bcf_real_user_v3');
+        localStorage.removeItem('bcf_auth_current_user_v2');
+        localStorage.removeItem('bcf_auth_current_user');
+      } catch {
+        // ignore
+      }
+    }
     const saved = getStoredData<User | null>(STORAGE_KEYS.CURRENT_USER, null);
-    if (saved && saved.email && saved.email !== 'solomon@bcflights.com') {
-      const match = INITIAL_USERS.find(u => u.email === saved.email);
+    if (saved && saved.email && saved.email !== 'solomon@bcflights.com' && saved.email !== 'adhambadraan@gmail.com') {
+      const match = INITIAL_USERS.find(u => u.email.toLowerCase() === saved.email.toLowerCase());
       return match ? { ...match, ...saved } : saved;
     }
-    // Live Real User: Adham Badran (adhambadraan@gmail.com - Developer God Mode)
-    return INITIAL_USERS.find(u => u.email === 'adhambadraan@gmail.com') || null;
+    // Default to NULL: The user MUST log in via the Login Card
+    return null;
   });
 
   const [realUser, setRealUser] = useState<User | null>(() => {
     const saved = getStoredData<User | null>(STORAGE_KEYS.REAL_USER, null);
-    if (saved && saved.email) {
-      const match = INITIAL_USERS.find(u => u.email === saved.email);
+    if (saved && saved.email && saved.email !== 'adhambadraan@gmail.com') {
+      const match = INITIAL_USERS.find(u => u.email.toLowerCase() === saved.email.toLowerCase());
       return match ? { ...match, ...saved } : saved;
     }
-    return INITIAL_USERS.find(u => u.email === 'adhambadraan@gmail.com') || null;
+    return null;
   });
 
   const isSimulating = Boolean(
@@ -630,6 +641,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setCurrentUser(null);
     setRealUser(null);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+        localStorage.removeItem(STORAGE_KEYS.REAL_USER);
+        localStorage.removeItem('bcf_auth_current_user_v3');
+        localStorage.removeItem('bcf_real_user_v3');
+        localStorage.removeItem('bcf_auth_current_user_v4');
+        localStorage.removeItem('bcf_real_user_v4');
+      } catch {
+        // Ignore
+      }
+    }
     closeModal();
     setIsGodModeOpen(false);
     setIsSettingsOpen(false);

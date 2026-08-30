@@ -1,7 +1,7 @@
 import { User, Team, BreakRecord, WCTracking, Warning, SNNHeadline, ShiftConfig, ChatMessage, Broadcast, AuditLogEntry, ShiftNote, Competition, ActivityLogExport } from '../types';
 
 const STORAGE_KEYS = {
-  CURRENT_USER: 'bcf_auth_current_user_v3',
+  CURRENT_USER: 'bcf_auth_current_user_v4',
   USERS: 'bcf_users_v3',
   TEAMS: 'bcf_teams_v3',
   BREAKS: 'bcf_records_v3',
@@ -16,7 +16,7 @@ const STORAGE_KEYS = {
   COMPETITIONS: 'bcf_competitions_v3',
   DAILY_LOGS: 'bcf_daily_logs_v3',
   ACTIVE_TEAM_FILTER: 'bcf_active_team_filter_v1',
-  REAL_USER: 'bcf_real_user_v3',
+  REAL_USER: 'bcf_real_user_v4',
 };
 
 export const INITIAL_TEAMS: Team[] = [
