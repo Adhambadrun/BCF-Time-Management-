@@ -120,13 +120,10 @@ export const LoginCard: React.FC = () => {
 
           {/* Domain Restriction Badge */}
           <div className="mt-3 flex flex-col items-center gap-1">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan/10 border border-cyan/30 text-cyan text-[11px] font-orbitron font-medium tracking-wide">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-cyan/10 border border-cyan/30 text-cyan text-[11px] font-orbitron font-medium tracking-wide">
               <ShieldCheck className="w-3.5 h-3.5 text-cyan shrink-0" />
               <span>Authorized Domain: @bcflights.com</span>
             </div>
-            <span className="text-[10px] font-mono text-zinc-400">
-              Developer Access: <strong className="text-yellow-400">adhambadraan@gmail.com</strong>
-            </span>
           </div>
         </div>
 
@@ -184,7 +181,7 @@ export const LoginCard: React.FC = () => {
           )}
         </div>
 
-        {/* Floor Security Footer with Developer Access */}
+        {/* Floor Security Footer with Made by Badran */}
         <div className="pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-zinc-500">
           <span>Enterprise Floor Access</span>
           <button
@@ -193,11 +190,12 @@ export const LoginCard: React.FC = () => {
               setShowDevModal(true);
               playSound('click');
             }}
-            className="hover:text-zinc-300 transition-colors flex items-center gap-1 cursor-pointer opacity-70 hover:opacity-100"
-            title="Developer Console Access"
+            className="hover:scale-105 transition-all flex items-center gap-1.5 cursor-pointer group"
+            title="Made by Badran · Developer Console"
           >
-            <KeyRound className="w-3.5 h-3.5 text-yellow-400" />
-            <span className="font-mono text-[10px] text-yellow-400/90 font-semibold">Dev Access</span>
+            <span className="font-orbitron text-[11px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 drop-shadow-[0_0_10px_rgba(255,215,0,0.5)] group-hover:brightness-125">
+              Made by Badran
+            </span>
           </button>
         </div>
       </GlassPanel>
@@ -226,7 +224,7 @@ export const LoginCard: React.FC = () => {
             </div>
 
             <p className="text-xs text-zinc-300 font-inter">
-              Authorized developer verification for <strong className="text-yellow-400 font-mono">adhambadraan@gmail.com</strong>.
+              Authorized developer authentication for Lead System Architect.
             </p>
 
             <form onSubmit={handleDevUnlock} className="space-y-3">

@@ -1,7 +1,22 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { GlassPanel } from '../shared/GlassPanel';
-import { Users, Clock, AlertTriangle, Award, HeartHandshake, FileText, CheckCircle2, Shield, Download } from 'lucide-react';
+import {
+  Users,
+  Clock,
+  AlertTriangle,
+  Award,
+  HeartHandshake,
+  FileText,
+  CheckCircle2,
+  Shield,
+  Download,
+  Layers,
+  ChevronDown,
+  Globe,
+  ArrowRightLeft,
+  Sparkles,
+} from 'lucide-react';
 import { playSound } from '../../lib/sound';
 import { useBatchActions, BatchActionType } from '../../hooks/useBatchActions';
 import { BatchActionToolbar } from './BatchActionToolbar';
@@ -15,6 +30,7 @@ export const SupervisorDashboard: React.FC = () => {
     currentUser,
     teams,
     activeTeamId,
+    setActiveTeamId,
     users,
     breaks,
     warnings,
@@ -26,8 +42,12 @@ export const SupervisorDashboard: React.FC = () => {
   } = useApp();
 
   const [isExporting, setIsExporting] = useState(false);
+  const [isTeamDropdownOpen, setIsTeamDropdownOpen] = useState(false);
 
   const team = teams.find(t => t.teamId === activeTeamId) || teams[0];
+  const myAssignedTeamId = currentUser?.teamId || 'cai-1';
+  const isInspectingOtherTeam = activeTeamId !== myAssignedTeamId && currentUser?.role === 'supervisor';
+
   const teamAgents = users.filter(
     u =>
       u.teamId === activeTeamId &&
@@ -72,25 +92,105 @@ export const SupervisorDashboard: React.FC = () => {
     }
   };
 
+  const handleSelectTeam = (tId: string) => {
+    setActiveTeamId(tId);
+    setIsTeamDropdownOpen(false);
+    playSound('click');
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-8 space-y-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className="px-2.5 py-1 rounded-md bg-cyan/20 text-cyan font-orbitron text-xs font-bold border border-cyan/40 uppercase">
               Supervisor Deck
             </span>
-            <h1 className="font-orbitron font-extrabold text-2xl md:text-3xl text-zinc-100">
-              {team.teamName} Floor Command
+            <h1 className="font-orbitron font-extrabold text-2xl md:text-3xl text-zinc-100 flex items-center gap-2">
+              <span>{team.teamName} Floor Command</span>
+              <span
+                className="w-3 h-3 rounded-full inline-block"
+                style={{ backgroundColor: team.teamColorAccent || '#00E5FF' }}
+              />
             </h1>
           </div>
-          <p className="text-sm text-zinc-400 mt-1 font-inter">
-            Supervisor: <span className="text-yellow-400 font-semibold">{currentUser?.name}</span> · Complete Team Isolation Enforced
+          <p className="text-sm text-zinc-400 mt-1 font-inter flex items-center gap-2 flex-wrap">
+            <span>Supervisor: <span className="text-yellow-400 font-semibold">{currentUser?.name}</span></span>
+            <span>·</span>
+            <span className="text-zinc-400">Assigned Team: <span className="text-cyan font-bold">{myAssignedTeamId.toUpperCase()}</span></span>
+            {isInspectingOtherTeam && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 text-xs font-orbitron font-bold animate-pulse">
+                👁️ Cross-Team Inspection Active ({team.teamName})
+              </span>
+            )}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Cross-Team Quick Selector & Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsTeamDropdownOpen(!isTeamDropdownOpen)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-cyan/50 text-cyan text-xs font-orbitron font-bold shadow-lg transition-all cursor-pointer"
+              title="Inspect other CAI team pod grids"
+            >
+              <Layers className="w-4 h-4 text-cyan" />
+              <span>Switch Team: {team.teamName}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-cyan transition-transform ${isTeamDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isTeamDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-zinc-950/95 border border-cyan/40 shadow-2xl backdrop-blur-xl z-50 p-2 space-y-1">
+                <div className="px-3 py-1.5 text-[10px] font-orbitron font-bold text-zinc-400 uppercase tracking-wider border-b border-white/10 flex items-center justify-between">
+                  <span>Cross-Team Pod Inspection</span>
+                  <Globe className="w-3 h-3 text-cyan" />
+                </div>
+                {teams.map((t) => {
+                  const isSelected = t.teamId === activeTeamId;
+                  const isHome = t.teamId === myAssignedTeamId;
+                  const supUser = users.find(u => u.email.toLowerCase() === t.supervisorEmail?.toLowerCase());
+                  const agentCount = users.filter(u => u.teamId === t.teamId && (u.role === 'agent' || u.role === 'independent')).length;
+
+                  return (
+                    <button
+                      key={t.teamId}
+                      onClick={() => handleSelectTeam(t.teamId)}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-cyan/20 border border-cyan/60 text-white font-bold'
+                          : 'hover:bg-white/5 text-zinc-300 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: t.teamColorAccent || '#00E5FF' }}
+                        />
+                        <div>
+                          <div className="text-xs font-orbitron font-bold text-white flex items-center gap-1.5">
+                            {t.teamName}
+                            {isHome && (
+                              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-yellow-400/20 text-yellow-300 border border-yellow-400/30">
+                                My Team
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-zinc-400 font-inter">
+                            Lead: {supUser?.name || t.supervisorEmail?.split('@')[0]} · {agentCount} pods
+                          </div>
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <CheckCircle2 className="w-4 h-4 text-cyan shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={handleExport}
             disabled={isExporting}
@@ -107,6 +207,53 @@ export const SupervisorDashboard: React.FC = () => {
             <FileText className="w-4 h-4 text-yellow-400" />
             Shift Handover Notes
           </button>
+        </div>
+      </div>
+
+      {/* Cross-Team Quick Pills Bar */}
+      <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white/5 border border-white/10 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Layers className="w-4 h-4 text-cyan shrink-0" />
+          <span className="text-xs font-orbitron text-zinc-300 font-bold uppercase">
+            Team Pod Grids:
+          </span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {teams.map((t) => {
+            const isSelected = t.teamId === activeTeamId;
+            const isHome = t.teamId === myAssignedTeamId;
+            return (
+              <button
+                key={t.teamId}
+                onClick={() => handleSelectTeam(t.teamId)}
+                className={`px-3 py-1 rounded-xl text-xs font-orbitron font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isSelected
+                    ? 'bg-cyan text-black shadow-[0_0_15px_rgba(0,229,255,0.4)] ring-1 ring-cyan scale-105'
+                    : 'bg-black/40 hover:bg-white/10 text-zinc-300 border border-white/10'
+                }`}
+              >
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: isSelected ? '#000' : t.teamColorAccent || '#00E5FF' }}
+                />
+                {t.teamName}
+                {isHome && (
+                  <span className={`text-[9px] px-1 rounded ${isSelected ? 'bg-black/20 text-black' : 'bg-yellow-400/20 text-yellow-300'}`}>
+                    ★
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          {isInspectingOtherTeam && (
+            <button
+              onClick={() => handleSelectTeam(myAssignedTeamId)}
+              className="px-2.5 py-1 rounded-xl text-xs font-orbitron text-yellow-300 bg-yellow-400/20 hover:bg-yellow-400/30 border border-yellow-400/40 font-bold transition-all cursor-pointer flex items-center gap-1"
+            >
+              <ArrowRightLeft className="w-3 h-3 text-yellow-400" />
+              Return to My Team
+            </button>
+          )}
         </div>
       </div>
 

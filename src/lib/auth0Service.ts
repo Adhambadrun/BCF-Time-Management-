@@ -80,8 +80,8 @@ export function syncAuth0UserToApp(auth0User: Auth0User): User {
     id: userId,
     name: auth0User.name || meta.name || seeded?.name || email.split('@')[0],
     email: email,
-    role: seeded?.role || meta.role,
-    teamId: seeded?.teamId || meta.teamId,
+    role: meta.role || seeded?.role || 'agent',
+    teamId: meta.teamId || seeded?.teamId || 'cai-2',
     avatarUrl:
       auth0User.picture ||
       seeded?.avatarUrl ||

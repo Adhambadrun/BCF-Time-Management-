@@ -5,6 +5,7 @@ import { Users, Clock, AlertTriangle, ShieldCheck, TrendingUp, Search, Plus, Rad
 import { playSound } from '../../lib/sound';
 import { BreakEfficiencyChart } from './BreakEfficiencyChart';
 import { FloorActivityHeatmap } from './FloorActivityHeatmap';
+import { CaiTeamsBreakUtilizationComparison } from './CaiTeamsBreakUtilizationComparison';
 import { CsvExportModal } from '../modals/CsvExportModal';
 
 export const AdminDashboard: React.FC = () => {
@@ -172,6 +173,21 @@ export const AdminDashboard: React.FC = () => {
           <div className="text-[10px] text-zinc-400 font-inter">Military sync active</div>
         </GlassPanel>
       </div>
+
+      {/* DEV & ADMIN ONLY: RECHARTS COMPARATIVE BREAK TIME UTILIZATION ACROSS ALL 5 CAI TEAMS */}
+      {(currentUser?.role === 'developer' || currentUser?.role === 'admin') && (
+        <CaiTeamsBreakUtilizationComparison
+          breaks={breaks}
+          teams={teams}
+          users={users}
+          shiftConfig={shiftConfig}
+          activeTeamId={activeTeamId}
+          onSelectTeam={(tId) => {
+            setActiveTeamId(tId);
+            playSound('click');
+          }}
+        />
+      )}
 
       {/* D3-BASED SALES FLOOR ACTIVITY HEATMAP */}
       <FloorActivityHeatmap

@@ -403,24 +403,72 @@ export const DevImpersonationPanel: React.FC<DevImpersonationPanelProps> = ({
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search identity by name, email (e.g. jay@bcflights.com, dominick@bcflights.com), role, or team..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/15 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-400 transition-all font-inter"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs font-orbitron"
+        {/* Quick Dropdown & Search Bar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Direct Dropdown Selector */}
+          <div className="relative md:col-span-1">
+            <select
+              value={currentUser?.email || ''}
+              onChange={(e) => {
+                if (e.target.value) {
+                  const target = users.find((u) => u.email.toLowerCase() === e.target.value.toLowerCase());
+                  if (target) handleSimulate(target);
+                }
+              }}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900/90 border border-yellow-400/50 text-xs text-yellow-300 font-orbitron font-semibold focus:outline-none focus:border-yellow-400 transition-all cursor-pointer"
             >
-              Clear
-            </button>
-          )}
+              <option value="" disabled>
+                -- Select User to Impersonate --
+              </option>
+              <optgroup label="👑 Developers & Executive Admins">
+                {users
+                  .filter((u) => u.role === 'developer' || u.role === 'admin')
+                  .map((u) => (
+                    <option key={u.id} value={u.email}>
+                      {u.name} ({u.role.toUpperCase()}) - {u.email}
+                    </option>
+                  ))}
+              </optgroup>
+              <optgroup label="⚡ CAI Supervisors">
+                {users
+                  .filter((u) => u.role === 'supervisor')
+                  .map((u) => (
+                    <option key={u.id} value={u.email}>
+                      {u.name} (Lead {u.teamId.toUpperCase()}) - {u.email}
+                    </option>
+                  ))}
+              </optgroup>
+              <optgroup label="💼 CAI Agents">
+                {users
+                  .filter((u) => u.role === 'agent' || u.role === 'independent')
+                  .map((u) => (
+                    <option key={u.id} value={u.email}>
+                      {u.name} ({u.teamId.toUpperCase()}) - {u.email}
+                    </option>
+                  ))}
+              </optgroup>
+            </select>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative md:col-span-2">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search identity by name, email (e.g. jay@bcflights.com, dominick@bcflights.com), role, or team..."
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/15 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-400 transition-all font-inter"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs font-orbitron"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Identities Grid */}
